@@ -1,4 +1,5 @@
 import { MotionGate, difference } from './motion.js';
+import { drawCameraRegion } from './camera.js';
 
 const $ = id => document.getElementById(id);
 const view = $('view'), video = $('video'), ctx = view.getContext('2d');
@@ -7,6 +8,7 @@ const tiny = document.createElement('canvas'); tiny.width = 64; tiny.height = 48
 const tinyCtx = tiny.getContext('2d', { willReadFrequently: true });
 const gate = new MotionGate(performance.now());
 let stream = null, demoMode = false, paused = true, busy = false, confirmed = false;
+let flipX = false, flipY = false;
 let roi = { x: 0.06, y: 0.08, w: 0.88, h: 0.8 }, drag = null, snapshot = null;
 let token = '', generation = 0, controller = null, activeHint = null, hintLevel = 0;
 let session = [], currentExercises = [], latestSample = null;
@@ -53,6 +55,7 @@ async function api(path, payload, signal) {
 function stopCamera() {
   stream?.getTracks().forEach(track => track.stop()); stream = null; video.srcObject = null;
   $('capture').disabled = true; $('pause').disabled = true; $('resetCrop').disabled = true;
+  for (const id of ['flipHorizontal', 'flipVertical', 'resetOrientation']) $(id).disabled = true;
 }
 async function startCamera() {
   cancel(); stopCamera(); demoMode = false; paused = true; invalidate({ clearText: true });
@@ -69,6 +72,7 @@ async function startCamera() {
     $('placeholder').hidden = true; $('frameLabel').hidden = false; $('resume').hidden = true;
     $('sourceBadge').textContent = '即時鏡頭 · 本機預覽';
     $('capture').disabled = false; $('pause').disabled = false; $('resetCrop').disabled = false;
+    for (const id of ['flipHorizontal', 'flipVertical', 'resetOrientation']) $(id).disabled = false;
     $('pause').textContent = '暫停陪讀'; paused = false; gate.reset(performance.now()); needsCapture = true;
     status('請拖曳框選目前題目'); notice('請先框選單一題目，避開姓名與人臉，再開啟雲端分析。');
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -89,16 +93,14 @@ async function startCamera() {
 }
 function captureImage() {
   if (!stream || !video.videoWidth) throw new Error('請先開啟鏡頭。');
-  const sx = roi.x * video.videoWidth, sy = roi.y * video.videoHeight;
   const sw = roi.w * video.videoWidth, sh = roi.h * video.videoHeight;
   const scale = Math.min(1, 1600 / Math.max(sw, sh));
   crop.width = Math.max(32, Math.round(sw * scale)); crop.height = Math.max(32, Math.round(sh * scale));
-  cropCtx.drawImage(video, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+  drawCameraRegion(cropCtx, video, video.videoWidth, video.videoHeight, roi, flipX, flipY);
   return crop.toDataURL('image/jpeg', 0.88);
 }
 function motionSample() {
-  tinyCtx.drawImage(video, roi.x * video.videoWidth, roi.y * video.videoHeight,
-    roi.w * video.videoWidth, roi.h * video.videoHeight, 0, 0, 64, 48);
+  drawCameraRegion(tinyCtx, video, video.videoWidth, video.videoHeight, roi, flipX, flipY);
   const rgba = tinyCtx.getImageData(0, 0, 64, 48).data;
   const gray = new Uint8Array(64 * 48);
   for (let i = 0; i < gray.length; i++) gray[i] = (rgba[i * 4] + rgba[i * 4 + 1] + rgba[i * 4 + 2]) / 3;
@@ -106,7 +108,8 @@ function motionSample() {
 }
 function paint() {
   if (stream && video.readyState >= 2) {
-    ctx.drawImage(video, 0, 0, view.width, view.height);
+    drawCameraRegion(ctx, video, video.videoWidth, video.videoHeight,
+      { x: 0, y: 0, w: 1, h: 1 }, flipX, flipY);
     const x = roi.x * view.width, y = roi.y * view.height, w = roi.w * view.width, h = roi.h * view.height;
     ctx.fillStyle = 'rgba(20,45,39,.28)';
     ctx.fillRect(0, 0, view.width, y); ctx.fillRect(0, y + h, view.width, view.height - y - h);
@@ -269,6 +272,24 @@ $('pause').onclick = () => {
   gate.reset(performance.now()); status(paused ? '已暫停分析與提醒；鏡頭仍預覽' : '繼續陪讀');
 };
 $('resetCrop').onclick = () => { roi = { x: 0.06, y: 0.08, w: 0.88, h: 0.8 }; invalidate({ clearText: true }); };
+function setOrientation(horizontal, vertical) {
+  if (!stream) return;
+  // Keep the selected physical question in the frame as its display position changes.
+  if (horizontal !== flipX) roi.x = Math.max(0, 1 - roi.x - roi.w);
+  if (vertical !== flipY) roi.y = Math.max(0, 1 - roi.y - roi.h);
+  flipX = horizontal; flipY = vertical; drag = null; latestSample = null;
+  $('flipHorizontal').setAttribute('aria-pressed', String(flipX));
+  $('flipVertical').setAttribute('aria-pressed', String(flipY));
+  invalidate({ clearText: true });
+  $('confidence').textContent = '等待重新讀取';
+  $('coachTitle').textContent = '畫面方向已調整。';
+  $('coachText').textContent = '重新讀取這一題後，我們再一起看看。';
+  status(paused ? '畫面方向已更新；陪讀仍暫停' : '畫面方向已更新，請確認框選題目');
+  notice('預覽、框選截圖與停筆偵測已同步翻轉；先前辨識結果已清除。');
+}
+$('flipHorizontal').onclick = () => setOrientation(!flipX, flipY);
+$('flipVertical').onclick = () => setOrientation(flipX, !flipY);
+$('resetOrientation').onclick = () => setOrientation(false, false);
 $('confirm').onclick = () => tutor(1, true);
 $('hint').onclick = () => {
   if (activeHint && hintLevel === 0) { showHint(activeHint.hint, 1); hintLevel = 1; return; }

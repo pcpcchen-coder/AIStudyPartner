@@ -62,6 +62,11 @@ test('mobile layout has no horizontal overflow', async ({ page }) => {
 });
 
 test('OAuth login exposes only an official browser URL, no API key form', async ({ page, context }) => {
+  // Exercise the signed-out UI without changing the real local account's login state.
+  await page.route('**/api/config', async route => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), authenticated: false, ready: false } });
+  });
   await context.route('https://auth.openai.com/**', route => route.fulfill({ body: 'Mock official login' }));
   await page.route('**/api/auth/login', route => route.fulfill({ json: { auth_url: 'https://auth.openai.com/authorize?state=test-only' } }));
   await page.goto('/');

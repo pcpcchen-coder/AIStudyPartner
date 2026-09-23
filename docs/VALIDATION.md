@@ -9,7 +9,7 @@
 | 本機後端 | Python／FastAPI 能啟動，localhost 頁面可使用 |
 | Python 自動測試 | 33 項：四則核算、六科示範、確認／解答門檻、雲端開關、CSRF／來源、圖片格式、快取與清除、Codex 協定、OAuth URL、拒絕工具與 API Key auth |
 | 本機動作邏輯 | 3 項：穩定等待、不重送、分析間隔、停筆冷卻、延後、雜訊 |
-| Chromium 流程 | 6 項：提示→解釋→複習、切科與修改失效、fake webcam／暫停、手機寬度、OAuth 視窗、清除後舊回應不回填 |
+| Chromium 流程 | 7 項：提示→解釋→複習、切科與修改失效、fake webcam／暫停、手機寬度、OAuth 視窗、清除後舊回應不回填、四種翻轉組合的預覽／非置中 ROI 截圖像素一致 |
 | 視覺檢查 | 桌面 1440 px 與手機 390 px 截圖，文字、控制與版面可讀 |
 | 真實 Codex 控制面 | 本機 Codex 0.155.0-alpha.16.3 啟動、initialize、account/read（未登入）、account/login/start 返回官方 HTTPS URL、取消及登出成功 |
 | 靜態檢查 | Ruff、JavaScript 語法、Git diff whitespace 檢查 |
