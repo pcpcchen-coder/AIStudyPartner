@@ -25,13 +25,20 @@ test('demo gives progressive hints, explanation and review without cloud request
   expect(errors).toEqual([]);
 });
 
-test('subject switch invalidates old lesson; open-ended answers remain advisory', async ({ page }) => {
+test('subject changes require next question; open-ended answers remain advisory', async ({ page }) => {
   await page.goto('/'); await page.locator('#demo').click();
+  await expect(page.locator('#subject')).toBeDisabled();
+  await expect(page.locator('#grade')).toBeDisabled();
+  await expect(page.locator('#demo')).toBeDisabled();
+  await page.locator('#nextQuestion').click();
   await page.locator('#subject').selectOption('英文');
+  await page.locator('#demo').click();
   await expect(page.locator('#question')).toHaveValue(/She/);
   await page.locator('#confirm').click();
   await expect(page.locator('#hintText')).toContainText('主詞');
+  await page.locator('#nextQuestion').click();
   await page.locator('#subject').selectOption('國語');
+  await page.locator('#demo').click();
   await expect(page.locator('#solution')).toBeDisabled();
   await page.locator('#confirm').click();
   await expect(page.locator('#verdict')).toContainText('開放題');

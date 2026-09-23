@@ -1,4 +1,4 @@
-import { MotionGate, difference } from './motion.js';
+import { MotionGate } from './motion.js';
 import { drawCameraRegion } from './camera.js';
 
 const $ = id => document.getElementById(id);
@@ -8,11 +8,11 @@ const tiny = document.createElement('canvas'); tiny.width = 64; tiny.height = 48
 const tinyCtx = tiny.getContext('2d', { willReadFrequently: true });
 const gate = new MotionGate(performance.now());
 let stream = null, demoMode = false, paused = true, busy = false, confirmed = false;
-let flipX = false, flipY = false;
+let flipX = false, flipY = false, cameraGeneration = 0;
 let roi = { x: 0.06, y: 0.08, w: 0.88, h: 0.8 }, drag = null, snapshot = null;
 let token = '', generation = 0, controller = null, activeHint = null, hintLevel = 0;
 let session = [], currentExercises = [], latestSample = null;
-let lastTick = 0, editorFocused = false, needsCapture = false, snapshotSample = null;
+let lastTick = 0, editorFocused = false, lessonActive = false, reading = false;
 
 function notice(text = '') { $('notice').textContent = text; $('notice').hidden = !text; }
 function status(text) { $('status').textContent = text; }
@@ -20,6 +20,9 @@ function context() { return { grade: $('grade').value, subject: $('subject').val
 function cancel() {
   generation++; controller?.abort(); controller = null; busy = false;
   window.speechSynthesis?.cancel();
+  // A cancelled first read has no lesson to preserve; allow a manual retry.
+  if (reading && !$('question').value.trim()) setLessonActive(false);
+  reading = false;
 }
 function clearLesson() {
   confirmed = false; activeHint = null; hintLevel = 0;
@@ -31,10 +34,27 @@ function clearLesson() {
   $('hintLabel').textContent = 'A SMALL NUDGE';
   $('exercises').replaceChildren(); currentExercises = []; $('reviewEmpty').hidden = false;
 }
-function invalidate({ clearText = false } = {}) {
-  cancel(); snapshot = null; snapshotSample = null; gate.reset(performance.now()); needsCapture = !!stream;
-  if (clearText) { $('question').value = ''; $('answer').value = ''; }
-  clearLesson();
+function setLessonActive(active) {
+  lessonActive = active;
+  $('nextQuestion').disabled = !active; $('demo').disabled = active;
+  $('subject').disabled = active; $('grade').disabled = active;
+  $('capture').disabled = active || paused || !stream;
+  $('lessonStatus').textContent = active
+    ? '本題已保留。看懂提示、完成練習後，再按「我理解了，下一題」。'
+    : '等待讀取題目；讀取後會保留到你主動切換下一題。';
+}
+function resetLesson() {
+  cancel(); snapshot = null; latestSample = null; gate.reset(performance.now());
+  $('question').value = ''; $('answer').value = '';
+  clearLesson(); setLessonActive(false);
+  $('explanation').textContent = ''; $('confidence').textContent = '等待畫面';
+  $('coachTitle').textContent = '不急，我在這裡。';
+  $('coachText').textContent = '準備好作業後，我們先看看題目在問什麼。';
+}
+function cameraChanged() {
+  latestSample = null; gate.reset(performance.now());
+  // Camera geometry is independent of the captured question and its teaching.
+  if (!lessonActive) { cancel(); snapshot = null; }
 }
 async function config() {
   const response = await fetch('/api/config');
@@ -53,28 +73,31 @@ async function api(path, payload, signal) {
   return data;
 }
 function stopCamera() {
+  cameraGeneration++;
   stream?.getTracks().forEach(track => track.stop()); stream = null; video.srcObject = null;
   $('capture').disabled = true; $('pause').disabled = true; $('resetCrop').disabled = true;
   for (const id of ['flipHorizontal', 'flipVertical', 'resetOrientation']) $(id).disabled = true;
 }
 async function startCamera() {
-  cancel(); stopCamera(); demoMode = false; paused = true; invalidate({ clearText: true });
-  const epoch = generation;
+  stopCamera(); paused = true; cameraChanged();
+  if (!lessonActive) demoMode = false;
+  const cameraEpoch = cameraGeneration;
   try {
     status('正在開啟攝影機…');
     const deviceId = $('camera').value;
     const next = await navigator.mediaDevices.getUserMedia({ audio: false, video: {
       width: { ideal: 1920 }, height: { ideal: 1080 }, ...(deviceId ? { deviceId: { exact: deviceId } } : {}) } });
-    if (epoch !== generation) { next.getTracks().forEach(t => t.stop()); return; }
+    if (cameraEpoch !== cameraGeneration) { next.getTracks().forEach(t => t.stop()); return; }
     stream = next; video.srcObject = stream; await video.play();
-    if (epoch !== generation) return;
+    if (cameraEpoch !== cameraGeneration) return;
     view.width = video.videoWidth; view.height = video.videoHeight;
     $('placeholder').hidden = true; $('frameLabel').hidden = false; $('resume').hidden = true;
     $('sourceBadge').textContent = '即時鏡頭 · 本機預覽';
-    $('capture').disabled = false; $('pause').disabled = false; $('resetCrop').disabled = false;
+    $('capture').disabled = lessonActive; $('pause').disabled = false; $('resetCrop').disabled = false;
     for (const id of ['flipHorizontal', 'flipVertical', 'resetOrientation']) $(id).disabled = false;
-    $('pause').textContent = '暫停陪讀'; paused = false; gate.reset(performance.now()); needsCapture = true;
-    status('請拖曳框選目前題目'); notice('請先框選單一題目，避開姓名與人臉，再開啟雲端分析。');
+    $('pause').textContent = '暫停陪讀'; paused = false; gate.reset(performance.now());
+    status(lessonActive ? '相機已開啟，本題教學繼續保留' : '請拖曳框選目前題目');
+    if (!lessonActive) notice('請先框選單一題目，避開姓名與人臉，再開啟雲端分析。');
     const devices = await navigator.mediaDevices.enumerateDevices();
     const selected = stream.getVideoTracks()[0].getSettings().deviceId;
     $('camera').replaceChildren(...devices.filter(d => d.kind === 'videoinput').map((d, i) => {
@@ -86,7 +109,7 @@ async function startCamera() {
       status('攝影機已中斷'); notice('攝影機連線中斷，請重新開啟。');
     };
   } catch (error) {
-    if (epoch !== generation) return;
+    if (cameraEpoch !== cameraGeneration) return;
     stopCamera(); status('攝影機尚未開啟'); $('resume').hidden = false;
     notice('無法開啟鏡頭。請在瀏覽器與 macOS「隱私權與安全性 → 攝影機」允許存取，並使用 localhost 網址。');
   }
@@ -120,46 +143,47 @@ function paint() {
   if (stream && !paused && !demoMode && !drag && video.readyState >= 2 && now - lastTick >= 500) {
     lastTick = now; latestSample = motionSample();
     const signal = gate.tick(latestSample, now, { interval: +$('interval').value, idle: +$('idle').value });
-    $('motionText').textContent = signal.moving ? '作業區域有變化，等畫面穩定再看。' : `畫面穩定約 ${signal.idleSeconds} 秒 · 停筆僅為畫面活動估計`;
-    if (snapshotSample && difference(latestSample, snapshotSample) > 0.035) {
-      invalidate({ clearText: true }); status('作業已變更，等畫面穩定後重新看題目');
-    }
-    if (signal.nudge && !busy && !editorFocused) {
+    $('motionText').textContent = lessonActive
+      ? '本題已固定；畫面移動不會重新辨識或清除教學。'
+      : (signal.moving ? '作業區域有變化，等畫面穩定再看。' : `畫面穩定約 ${signal.idleSeconds} 秒 · 等待讀題`);
+    if (signal.nudge && !busy && !editorFocused && hintLevel === 0 && (!lessonActive || activeHint)) {
       gate.nudge(now);
       showHint(activeHint?.hint || '可以先想一想：題目要找的是什麼？需要的話，按「給我提示」。', activeHint ? 1 : 0);
+      if (activeHint) hintLevel = 1;
     }
-    if (signal.analyze && $('auto').checked && $('cloud').checked && !busy && !editorFocused) observe();
+    if (!lessonActive && signal.analyze && $('auto').checked && $('cloud').checked && !busy && !editorFocused) observe();
   }
   requestAnimationFrame(paint);
 }
 function applyObservation(observation) {
   $('question').value = observation.question; $('answer').value = observation.student_answer;
-  clearLesson();
+  clearLesson(); setLessonActive(true);
   $('confidence').textContent = demoMode ? '人工編寫示範' : `模型自評 ${Math.round(observation.confidence * 100)}% · 非校準機率`;
   const usable = observation.quality === 'clear' && observation.confidence >= 0.85 && observation.question.trim();
-  notice(usable ? '' : (observation.clarification || '題目看不清楚，請重新框選或修正文字，暫不判斷對錯。'));
+  notice(usable ? '' : (observation.clarification || '題目看不清楚，請修正文字，或按「下一題」後重新框選讀取，暫不判斷對錯。'));
   $('coachTitle').textContent = usable ? '先看看，我有沒有讀對。' : '我們先把題目看清楚。';
   $('coachText').textContent = `現在陪你練習${$('subject').value}，提示會依${$('grade').value}調整。`;
   return usable;
 }
 async function observe() {
-  if (busy || paused || !stream) return;
+  if (busy || paused || !stream || lessonActive) return;
   if (!$('cloud').checked) { notice('請先開啟雲端分析，才會將框選作業送至 OpenAI。'); return; }
   busy = true; const epoch = generation; const abort = new AbortController(); controller = abort;
-  const image = captureImage(), sample = latestSample?.slice() || motionSample();
+  const image = captureImage(), sample = motionSample();
+  setLessonActive(true); reading = true;
   gate.markSent(sample, performance.now()); status('Astra 正在看題目…');
   try {
     const data = await api('/api/observe', { image, ...context() }, abort.signal);
     if (epoch !== generation) return;
-    if (difference(sample, motionSample()) > 0.035) {
-      gate.sent = null; status('畫面已變更，等穩定後重新辨識'); return;
-    }
-    snapshot = image; snapshotSample = sample; needsCapture = false;
+    reading = false; snapshot = image;
     const usable = applyObservation(data.observation); status('題目已讀取');
     busy = false;
     if (usable) await tutor(1, false, true);
-  } catch (error) { fail(error, epoch); }
-  finally { if (epoch === generation) { busy = false; controller = null; } config().catch(() => {}); }
+  } catch (error) {
+    if (epoch === generation && !snapshot && !$('question').value.trim()) setLessonActive(false);
+    fail(error, epoch);
+  }
+  finally { if (epoch === generation) { reading = false; busy = false; controller = null; } config().catch(() => {}); }
 }
 function fail(error, epoch) {
   if (error.name === 'AbortError' || epoch !== generation) return;
@@ -168,7 +192,6 @@ function fail(error, epoch) {
 async function tutor(level = 1, confirm = confirmed, quiet = false) {
   if (busy || !$('question').value.trim()) return;
   if (!demoMode && !$('cloud').checked) { notice('請先開啟雲端分析。'); return; }
-  if (needsCapture && stream) { notice('範圍或畫面已更新，請先按「看一下這一題」重新辨識。'); return; }
   busy = true; const epoch = generation; const abort = new AbortController(); controller = abort;
   status('Astra 正在整理提示…');
   try {
@@ -229,7 +252,8 @@ function renderExercises(exercises) {
   });
 }
 async function loadDemo() {
-  cancel(); stopCamera(); paused = true; demoMode = true; invalidate({ clearText: true });
+  if (lessonActive) return;
+  stopCamera(); paused = true; demoMode = true; resetLesson();
   const epoch = generation;
   const response = await fetch(`/api/demo/${encodeURIComponent($('subject').value)}`);
   const data = await response.json(); if (epoch !== generation) return;
@@ -250,7 +274,7 @@ async function loadDemo() {
 }
 function point(event) { const r = view.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (event.clientX - r.left) / r.width)), y: Math.max(0, Math.min(1, (event.clientY - r.top) / r.height)) }; }
 view.addEventListener('pointerdown', event => {
-  if (!stream || paused) return; drag = point(event); view.setPointerCapture(event.pointerId); invalidate({ clearText: true });
+  if (!stream || paused) return; drag = point(event); view.setPointerCapture(event.pointerId); cameraChanged();
 });
 view.addEventListener('pointermove', event => {
   if (!drag) return; const p = point(event);
@@ -260,7 +284,7 @@ view.addEventListener('pointermove', event => {
 function endDrag() {
   if (!drag) return; drag = null;
   if (roi.w < 0.05 || roi.h < 0.05) roi = { x: 0.06, y: 0.08, w: 0.88, h: 0.8 };
-  gate.reset(performance.now()); status('題目範圍已更新');
+  gate.reset(performance.now()); status(lessonActive ? '框選已更新，本題保留到你按下一題' : '題目範圍已更新');
 }
 view.addEventListener('pointerup', endDrag); view.addEventListener('pointercancel', endDrag);
 $('start').onclick = startCamera; $('resume').onclick = startCamera; $('camera').onchange = startCamera;
@@ -268,10 +292,10 @@ $('demo').onclick = () => loadDemo().catch(e => notice(e.message));
 $('capture').onclick = observe;
 $('pause').onclick = () => {
   paused = !paused; cancel();
-  $('pause').textContent = paused ? '繼續陪讀' : '暫停陪讀'; $('capture').disabled = paused;
+  $('pause').textContent = paused ? '繼續陪讀' : '暫停陪讀'; $('capture').disabled = paused || lessonActive;
   gate.reset(performance.now()); status(paused ? '已暫停分析與提醒；鏡頭仍預覽' : '繼續陪讀');
 };
-$('resetCrop').onclick = () => { roi = { x: 0.06, y: 0.08, w: 0.88, h: 0.8 }; invalidate({ clearText: true }); };
+$('resetCrop').onclick = () => { roi = { x: 0.06, y: 0.08, w: 0.88, h: 0.8 }; cameraChanged(); };
 function setOrientation(horizontal, vertical) {
   if (!stream) return;
   // Keep the selected physical question in the frame as its display position changes.
@@ -280,12 +304,9 @@ function setOrientation(horizontal, vertical) {
   flipX = horizontal; flipY = vertical; drag = null; latestSample = null;
   $('flipHorizontal').setAttribute('aria-pressed', String(flipX));
   $('flipVertical').setAttribute('aria-pressed', String(flipY));
-  invalidate({ clearText: true });
-  $('confidence').textContent = '等待重新讀取';
-  $('coachTitle').textContent = '畫面方向已調整。';
-  $('coachText').textContent = '重新讀取這一題後，我們再一起看看。';
+  cameraChanged();
   status(paused ? '畫面方向已更新；陪讀仍暫停' : '畫面方向已更新，請確認框選題目');
-  notice('預覽、框選截圖與停筆偵測已同步翻轉；先前辨識結果已清除。');
+  notice(lessonActive ? '畫面方向已更新；本題圖片與教學保留，按下一題後才使用新畫面。' : '預覽、框選截圖與停筆偵測已同步翻轉。');
 }
 $('flipHorizontal').onclick = () => setOrientation(!flipX, flipY);
 $('flipVertical').onclick = () => setOrientation(flipX, !flipY);
@@ -303,15 +324,34 @@ $('cloud').onchange = () => { cancel(); gate.reset(performance.now()); status($(
 for (const id of ['question', 'answer']) {
   $(id).addEventListener('focus', () => { editorFocused = true; });
   $(id).addEventListener('blur', () => { editorFocused = false; });
-  $(id).addEventListener('input', () => { cancel(); clearLesson(); });
+  $(id).addEventListener('input', () => {
+    cancel(); confirmed = false; activeHint = null;
+    if ($('question').value.trim()) setLessonActive(true);
+    $('confirm').disabled = !$('question').value.trim();
+    $('hint').disabled = !$('question').value.trim(); $('solution').disabled = true;
+    $('verdict').textContent = '文字已修改，請重新確認';
+    notice('原有提示、說明與複習作答保留；文字修改後，請按「文字正確，幫我看看」重新檢查。');
+  });
 }
 for (const id of ['subject', 'grade']) $(id).onchange = () => {
-  invalidate({ clearText: true });
-  if (demoMode) loadDemo().catch(e => notice(e.message));
-  else status('學習設定已更新，請重新讀取題目');
+  if (lessonActive) return;
+  cameraChanged(); status('學習設定已更新，請讀取題目');
+};
+$('nextQuestion').onclick = () => {
+  if (!lessonActive) return;
+  if (currentExercises.length) session.push({ time: new Date().toISOString(), ...context(),
+    question: $('question').value, review: currentExercises.map(exercise => ({ ...exercise })) });
+  resetLesson(); demoMode = false;
+  if (!stream) {
+    ctx.clearRect(0, 0, view.width, view.height);
+    $('placeholder').hidden = false; $('frameLabel').hidden = true;
+    $('sourceBadge').textContent = '尚未開啟鏡頭';
+  }
+  status('準備下一題，請先框選題目');
+  notice('上一題已結束。框選下一題後，可按「看一下這一題」或等待自動讀取。');
 };
 $('clear').onclick = async () => {
-  cancel(); stopCamera(); paused = true; demoMode = false; invalidate({ clearText: true }); session = [];
+  cancel(); stopCamera(); paused = true; demoMode = false; resetLesson(); session = [];
   ctx.clearRect(0, 0, view.width, view.height); cropCtx.clearRect(0, 0, crop.width, crop.height);
   tinyCtx.clearRect(0, 0, 64, 48); latestSample = null;
   $('cloud').checked = false; $('placeholder').hidden = false; $('frameLabel').hidden = true; $('resume').hidden = true;

@@ -61,6 +61,9 @@ test('flips preview and captured ROI together in every orientation', async ({ pa
   ]) {
     if (button) {
       await page.locator(`#${button}`).click();
+      await expect(page.locator('#question')).toHaveValue('test question');
+      await expect(page.locator('#capture')).toBeDisabled();
+      await page.locator('#nextQuestion').click();
       await expect(page.locator('#question')).toHaveValue('');
     }
     await expect(page.locator('#flipHorizontal')).toHaveAttribute('aria-pressed', String(horizontal));
