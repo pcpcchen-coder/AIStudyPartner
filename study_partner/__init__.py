@@ -1,0 +1,1 @@
+"""AIStudyPartner local application."""
