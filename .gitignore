@@ -12,3 +12,5 @@ work/
 
 
 .runtime/
+
+*.app/

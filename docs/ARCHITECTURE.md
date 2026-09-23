@@ -87,3 +87,14 @@ App 不自動儲存影像；JPEG 正規化去掉 metadata。Codex thread 使用 
 未確認文字或教學模型自評低於 0.85 時不判正誤；0.85 未經校準。只有純四則字串可使用 AST 白名單＋Fraction 精確核算，不使用 eval。核算不證明模型的教學文字、複習題或幾何推導一定正確。
 
 官方依據：[App Server](https://learn.chatgpt.com/docs/app-server)、[Auth](https://learn.chatgpt.com/docs/auth)。本機協定實際檢查版本：0.155.0-alpha.16.3；支援舊版本不予假設。
+
+
+## 7. Mac App 啟動器
+
+`Install App.command` 呼叫 `scripts/build_macos_app.py`，使用 macOS 內建 `osacompile` 建立 stay-open applet、產生書本／星光圖示、寫入 Info.plist、做本機 ad-hoc 簽署並註冊 Launch Services。App 保留 Dock 與正常 App 選單，不建立 launch daemon 或 login item。
+
+`macos/launcher.applescript` 的 run/reopen/quit 事件透過 `scripts/app-control.sh` 呼叫 `study_partner.desktop`。啟動受本機檔案鎖保護，已存在的服務需符合專案 cwd 與限定命令；新服務使用獨立程序 session 和 `.runtime/desktop-8765/server.log`，不輸出至終端視窗。檔案紀錄僅有程序識別，不含帳號或作業。
+
+退出時再次核對 PID、啟動時間、cwd 與命令，才送 SIGTERM。新啟動的 uvicorn 設有 10 秒 graceful shutdown 上限；lifespan 關閉既有 Codex bridge。PID 被重用或其他程式佔用連接埠時不發送訊號。強制結束 App 不會跑 quit handler，因此不宣稱強制結束也能清掉服務。
+
+Apple 行為依據：[Stay-open app 的 idle 與 quit handlers](https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/conceptual/ASLR_about_handlers.html)。

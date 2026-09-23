@@ -34,7 +34,16 @@ cd AIStudyPartner
 bash scripts/start.sh
 ```
 
-開啟 **http://127.0.0.1:8765**。macOS 也可雙擊 `Start.command`。示範模式不需登入、不會呼叫模型；執行應用程式不需要 Node、Xcode 或 Docker。
+開啟 **http://127.0.0.1:8765**。示範模式不需登入、不會呼叫模型；執行應用程式不需要 Node、Xcode 或 Docker。
+
+### Mac App 啟動（建議）
+
+1. 雙擊 `Install App.command`，安裝到 `~/Applications/AIStudyPartner.app`。
+2. 從「應用程式」或 Spotlight 搜尋 **AIStudyPartner** 並開啟；App 會啟動本機服務、開啟伴讀網頁並留在 Dock。
+3. 再點 Dock 圖示，選「開啟伴讀網頁」或「關閉服務並退出」。也可在 App 的控制對話框選「繼續執行」後，使用 App 選單「退出」或 Command-Q。
+4. 下次直接開啟 App；`Start.command` 也會啟動此 App，尚未安裝時會先建立。
+
+這是使用目前專案與 Python 環境的**本機啟動器**，請保留專案資料夾原位置；不是可單獨拷貝到其他 Mac 的完整安裝包。更新 App 前先退出，再執行 `Install App.command`。不建立登入項目、不設定開機自動啟動；關閉網頁不會關閉 App。詳見 [Mac 設定](docs/MAC_SETUP.md#mac-app-的安裝啟動與退出)。
 
 ### 真實作業陪讀
 

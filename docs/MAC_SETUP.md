@@ -57,3 +57,18 @@ Astra 辨識、整理提示或準備說明時會出現全頁遮罩，顯示目�
 | 達呼叫上限 | 先查方案用量再決定是否重啟；重啟只重設本機計數，不重設方案額度 |
 
 相機只在 localhost 等安全來源可用。[MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)。第一版只供 localhost，不能用公開 tunnel 當多人服務。
+
+
+## Mac App 的安裝、啟動與退出
+
+- 安裝：雙擊專案的 `Install App.command`。安裝位置為 `~/Applications/AIStudyPartner.app`，可由 Finder「前往 → 個人專屬 → Applications」、Spotlight 搜尋 AIStudyPartner，或將 App 拖到 Dock。
+- 開啟：App 啟動服務並在預設瀏覽器開啟 `http://127.0.0.1:8765/`。若本專案服務已執行，核對後直接接手，不另開第二份。
+- 控制：再點 Dock 圖示，顯示「開啟伴讀網頁」「繼續執行」「關閉服務並退出」。控制對話框出現時請用退出按鈕；選「繼續執行」收起對話框後，可用 App 選單「退出」或 Command-Q。
+- 正常退出：對核對過的本專案服務送出終止通知，等待服務及 Codex 連線程序結束後才退出 App。進行中的模型請求可能需要時間收尾；若未結束會提示重試，不假裝已關閉。
+- 再次開啟：會重新啟動服務；ChatGPT 登入保留。網頁中的未匯出學習紀錄不會跨頁面保存。
+- 關閉瀏覽器或按網頁「結束並清除」只結束頁面陪讀，App／本機服務仍在。
+- 若強制結束 App（Force Quit），系統不會執行正常退出處理，服務可能留在背景；再開 App 接手後正常退出即可。
+
+App 使用原專案資料夾與 `.venv`，安裝器不打包 `.runtime`、登入憑證或學生作業。搬動專案後，先退出舊 App，再從新位置重新安裝。此版本在本機建立並做 ad-hoc 簽署，尚非 Developer ID 簽署／公證的跨 Mac 發行版。
+
+技術維護仍可使用 `bash scripts/start.sh`（Control-C 結束）。App 控制指令為 `bash scripts/app-control.sh start|status|stop`；`stop` 只處理 App 已記錄且 PID、啟動時間、工作目錄與啟動命令仍一致的服務，絕不單憑 8765 連接埠關閉程式。
