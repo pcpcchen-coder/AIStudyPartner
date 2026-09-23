@@ -31,4 +31,14 @@
 <section class="review panel"><div class="panel-heading"><div><span class="step">03</span><h2>換一題，試試自己的理解</h2></div><button id="export" class="subtle">匯出本次學習紀錄</button></div><p class="muted" id="reviewEmpty">看過解釋後，這裡會出現同概念的複習題。答案先收起來，試完再對照。</p><div id="exercises" class="exercise-grid"></div></section>
 <footer><span>陪伴思考，保留探索的空間。</span><span>Prototype 0.1 · AI 建議仍需核對 · 本機不自動儲存作業影像</span></footer>
 </main>
+<dialog id="processingDialog" class="processing-dialog" aria-labelledby="processingTitle" aria-describedby="processingDescription">
+<div class="processing-card">
+<div class="processing-spinner" aria-hidden="true"></div>
+<span class="eyebrow">處理中 · 請稍候</span>
+<div role="status" aria-live="polite" aria-atomic="true"><h2 id="processingTitle">Astra 正在辨識題目…</h2><p id="processingDescription">正在閱讀框選的作業與作答。</p></div>
+<p class="processing-guidance">完成後會自動回到作業畫面，再繼續下一步。<br>目前的題目與教學內容都會保留。</p>
+<p id="processingElapsed" class="muted" aria-live="off">已等待 0 秒</p>
+<button id="cancelProcessing" class="subtle" autofocus>取消這次處理</button>
+</div>
+</dialog>
 </body></html>

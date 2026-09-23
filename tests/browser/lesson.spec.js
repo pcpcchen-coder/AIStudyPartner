@@ -134,6 +134,7 @@ test('movement during initial recognition keeps its captured question; next disc
   releaseObservation();
   await expect(page.locator('#question')).toHaveValue('第一題');
   await started;
+  await page.locator('#cancelProcessing').click();
   await page.locator('#nextQuestion').click(); releaseTutor();
   await expect(page.locator('#question')).toHaveValue('');
   await expect(page.locator('#explanationBlock')).toBeHidden();
@@ -141,7 +142,7 @@ test('movement during initial recognition keeps its captured question; next disc
   await expect(page.locator('#coachTitle')).toHaveText('不急，我在這裡。');
 });
 
-test('cancelling the first read by pausing allows retry after resume', async ({ page }) => {
+test('cancelling the first read allows retry after pausing and resuming', async ({ page }) => {
   let release;
   const wait = new Promise(resolve => { release = resolve; });
   await page.route('**/api/observe', async route => {
@@ -150,6 +151,7 @@ test('cancelling the first read by pausing allows retry after resume', async ({ 
   });
   await camera(page); await page.locator('#capture').click();
   await expect(page.locator('#nextQuestion')).toBeEnabled();
+  await page.locator('#cancelProcessing').click();
   await page.locator('#pause').click();
   await expect(page.locator('#capture')).toBeDisabled();
   await page.locator('#pause').click(); release();

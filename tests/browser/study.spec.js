@@ -97,6 +97,7 @@ test('clearing during an in-flight observation cannot restore old homework', asy
   await page.goto('/'); await page.locator('.settings summary').click(); await page.locator('#auto').uncheck();
   await page.locator('#start').click(); await expect(page.locator('#capture')).toBeEnabled();
   await page.locator('#cloud').check(); await page.locator('#capture').click(); await observed;
+  await page.locator('#cancelProcessing').click();
   await page.locator('#clear').click(); release();
   await expect(page.locator('#question')).toHaveValue('');
   await expect(page.locator('#coachTitle')).toContainText('今天辛苦了');

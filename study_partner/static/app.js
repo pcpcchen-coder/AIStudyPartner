@@ -12,17 +12,49 @@ let flipX = false, flipY = false, cameraGeneration = 0;
 let roi = { x: 0.06, y: 0.08, w: 0.88, h: 0.8 }, drag = null, snapshot = null;
 let token = '', generation = 0, controller = null, activeHint = null, hintLevel = 0;
 let session = [], currentExercises = [], latestSample = null;
+let processingTimer = null, processingStarted = 0;
 let lastTick = 0, editorFocused = false, lessonActive = false, reading = false;
 
 function notice(text = '') { $('notice').textContent = text; $('notice').hidden = !text; }
 function status(text) { $('status').textContent = text; }
 function context() { return { grade: $('grade').value, subject: $('subject').value }; }
+function showProcessing(title, description) {
+  $('processingTitle').textContent = title;
+  $('processingDescription').textContent = description;
+  if ($('processingDialog').open) return; // Keep the overlay up between reading and preparing hints.
+  processingStarted = performance.now();
+  $('processingElapsed').textContent = '已等待 0 秒';
+  document.documentElement.classList.add('processing');
+  document.querySelector('main').setAttribute('aria-busy', 'true');
+  $('processingDialog').showModal();
+  processingTimer = setInterval(() => {
+    const seconds = Math.floor((performance.now() - processingStarted) / 1000);
+    $('processingElapsed').textContent = `已等待 ${seconds} 秒${seconds >= 20 ? ' · 較複雜的題目可能需要更久，請稍候。' : ''}`;
+  }, 1000);
+}
+function hideProcessing() {
+  clearInterval(processingTimer); processingTimer = null;
+  if ($('processingDialog').open) $('processingDialog').close();
+  document.documentElement.classList.remove('processing');
+  document.querySelector('main').removeAttribute('aria-busy');
+}
+function cancelProcessing() {
+  cancel(); $('auto').checked = false;
+  gate.reset(performance.now());
+  status('已取消這次處理，可手動重試');
+  notice('已停止等待，原有教學仍保留。已送出的模型處理可能仍會使用額度。');
+}
+$('cancelProcessing').onclick = cancelProcessing;
+$('processingDialog').addEventListener('cancel', event => {
+  event.preventDefault(); cancelProcessing();
+});
+
 function cancel() {
   generation++; controller?.abort(); controller = null; busy = false;
   window.speechSynthesis?.cancel();
   // A cancelled first read has no lesson to preserve; allow a manual retry.
   if (reading && !$('question').value.trim()) setLessonActive(false);
-  reading = false;
+  reading = false; hideProcessing();
 }
 function clearLesson() {
   confirmed = false; activeHint = null; hintLevel = 0;
@@ -169,10 +201,11 @@ async function observe() {
   if (busy || paused || !stream || lessonActive) return;
   if (!$('cloud').checked) { notice('請先開啟雲端分析，才會將框選作業送至 OpenAI。'); return; }
   busy = true; const epoch = generation; const abort = new AbortController(); controller = abort;
-  const image = captureImage(), sample = motionSample();
-  setLessonActive(true); reading = true;
-  gate.markSent(sample, performance.now()); status('Astra 正在看題目…');
   try {
+    const image = captureImage(), sample = motionSample();
+    setLessonActive(true); reading = true;
+    gate.markSent(sample, performance.now()); status('Astra 正在看題目…');
+    showProcessing('Astra 正在辨識題目…', '正在閱讀框選的作業與作答，接著會準備適合這一題的提示。');
     const data = await api('/api/observe', { image, ...context() }, abort.signal);
     if (epoch !== generation) return;
     reading = false; snapshot = image;
@@ -183,7 +216,7 @@ async function observe() {
     if (epoch === generation && !snapshot && !$('question').value.trim()) setLessonActive(false);
     fail(error, epoch);
   }
-  finally { if (epoch === generation) { reading = false; busy = false; controller = null; } config().catch(() => {}); }
+  finally { if (epoch === generation) { reading = false; busy = false; controller = null; hideProcessing(); } config().catch(() => {}); }
 }
 function fail(error, epoch) {
   if (error.name === 'AbortError' || epoch !== generation) return;
@@ -194,6 +227,8 @@ async function tutor(level = 1, confirm = confirmed, quiet = false) {
   if (!demoMode && !$('cloud').checked) { notice('請先開啟雲端分析。'); return; }
   busy = true; const epoch = generation; const abort = new AbortController(); controller = abort;
   status('Astra 正在整理提示…');
+  showProcessing(demoMode ? '正在準備示範教學…' : (level === 3 ? 'Astra 正在整理說明與複習題…' : 'Astra 正在整理提示…'),
+    demoMode ? '正在載入固定教材，這次不會呼叫 AI。' : (level === 3 ? '正在準備一步一步的說明，以及幫助理解的練習。' : '正在思考這一題，準備適合你的引導。'));
   try {
     const data = await api('/api/tutor', { ...context(), question: $('question').value.trim(),
       student_answer: $('answer').value.trim(), image: snapshot, confirmed: confirm,
@@ -217,7 +252,7 @@ async function tutor(level = 1, confirm = confirmed, quiet = false) {
     notice(demoMode ? '示範模式：這是人工編寫的固定教材，沒有呼叫 AI，也沒有辨識真實影像。' : '');
     status(quiet ? '提示已準備好，先讓你想一想' : '慢慢來，我陪你想');
   } catch (error) { fail(error, epoch); }
-  finally { if (epoch === generation) { busy = false; controller = null; } config().catch(() => {}); }
+  finally { if (epoch === generation) { busy = false; controller = null; hideProcessing(); } config().catch(() => {}); }
 }
 function showHint(text, level) {
   $('hintLabel').textContent = level ? `HINT ${String(level).padStart(2, '0')}` : 'TAKE YOUR TIME';
