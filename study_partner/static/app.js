@@ -18,6 +18,36 @@ let lastTick = 0, editorFocused = false, lessonActive = false, reading = false;
 function notice(text = '') { $('notice').textContent = text; $('notice').hidden = !text; }
 function status(text) { $('status').textContent = text; }
 function context() { return { grade: $('grade').value, subject: $('subject').value }; }
+function updateCloudDisplay() {
+  const enabled = $('cloud').checked;
+  $('cloudAttention').dataset.enabled = String(enabled);
+  $('cloudBox').dataset.enabled = String(enabled);
+  $('cloudAttentionTitle').textContent = enabled ? '雲端分析已開啟' : 'AI 分析尚未開啟';
+  $('cloudAttentionText').textContent = enabled
+    ? '已允許傳送框選作業。請確認 ChatGPT 已登入，再開始讀題。'
+    : '尚未勾選傳送許可，AI 不會讀取作業。請先設定，才不會空等；示範作業仍可使用。';
+  $('cloudHelp').textContent = enabled
+    ? '已開啟：允許傳送框選作業，隨時可取消勾選。'
+    : '尚未開啟：勾選下方許可後，AI 才能讀題與提供教學。';
+  $('cloudSettings').hidden = enabled;
+}
+function showCloudReminder() {
+  notice('請先開啟雲端分析，才會將框選作業送至 OpenAI。');
+  if (!$('cloudReminder').open) $('cloudReminder').showModal();
+  document.documentElement.classList.add('cloud-reminder-open');
+}
+$('cloudSettings').onclick = showCloudReminder;
+$('dismissCloudReminder').onclick = () => $('cloudReminder').close();
+$('cloudReminder').addEventListener('close', () => {
+  document.documentElement.classList.remove('cloud-reminder-open');
+});
+$('goToCloud').onclick = () => {
+  $('cloudReminder').close();
+  $('cloudBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('cloud').focus({ preventScroll: true });
+};
+updateCloudDisplay();
+
 function showProcessing(title, description) {
   $('processingTitle').textContent = title;
   $('processingDescription').textContent = description;
@@ -199,7 +229,7 @@ function applyObservation(observation) {
 }
 async function observe() {
   if (busy || paused || !stream || lessonActive) return;
-  if (!$('cloud').checked) { notice('請先開啟雲端分析，才會將框選作業送至 OpenAI。'); return; }
+  if (!$('cloud').checked) { showCloudReminder(); return; }
   busy = true; const epoch = generation; const abort = new AbortController(); controller = abort;
   try {
     const image = captureImage(), sample = motionSample();
@@ -224,7 +254,7 @@ function fail(error, epoch) {
 }
 async function tutor(level = 1, confirm = confirmed, quiet = false) {
   if (busy || !$('question').value.trim()) return;
-  if (!demoMode && !$('cloud').checked) { notice('請先開啟雲端分析。'); return; }
+  if (!demoMode && !$('cloud').checked) { showCloudReminder(); return; }
   busy = true; const epoch = generation; const abort = new AbortController(); controller = abort;
   status('Astra 正在整理提示…');
   showProcessing(demoMode ? '正在準備示範教學…' : (level === 3 ? 'Astra 正在整理說明與複習題…' : 'Astra 正在整理提示…'),
@@ -355,7 +385,7 @@ $('solution').onclick = () => tutor(3, confirmed);
 $('thinking').onclick = () => { gate.snooze(performance.now()); window.speechSynthesis?.cancel(); status('接下來兩分鐘不主動提醒'); };
 $('speak').onclick = () => speak($('hintText').textContent);
 $('voice').onchange = () => { if (!$('voice').checked) window.speechSynthesis?.cancel(); };
-$('cloud').onchange = () => { cancel(); gate.reset(performance.now()); status($('cloud').checked ? '雲端分析已開啟' : '雲端分析已關閉'); };
+$('cloud').onchange = () => { updateCloudDisplay(); cancel(); gate.reset(performance.now()); status($('cloud').checked ? '雲端分析已開啟' : '雲端分析已關閉'); };
 for (const id of ['question', 'answer']) {
   $(id).addEventListener('focus', () => { editorFocused = true; });
   $(id).addEventListener('blur', () => { editorFocused = false; });
@@ -389,7 +419,7 @@ $('clear').onclick = async () => {
   cancel(); stopCamera(); paused = true; demoMode = false; resetLesson(); session = [];
   ctx.clearRect(0, 0, view.width, view.height); cropCtx.clearRect(0, 0, crop.width, crop.height);
   tinyCtx.clearRect(0, 0, 64, 48); latestSample = null;
-  $('cloud').checked = false; $('placeholder').hidden = false; $('frameLabel').hidden = true; $('resume').hidden = true;
+  $('cloud').checked = false; updateCloudDisplay(); $('placeholder').hidden = false; $('frameLabel').hidden = true; $('resume').hidden = true;
   $('sourceBadge').textContent = '尚未開啟鏡頭'; $('confidence').textContent = '等待畫面';
   $('coachTitle').textContent = '今天辛苦了，下次再一起學。'; $('coachText').textContent = '本機頁面的學習紀錄與圖片已清除。';
   status('已結束陪讀'); notice();
@@ -425,7 +455,7 @@ $('refreshAuth').onclick = () => config().then(() => {
   $('loginLink').hidden = true; notice('登入狀態已更新。');
 }).catch(e => notice(e.message));
 $('logout').onclick = async () => {
-  cancel(); $('cloud').checked = false;
+  cancel(); $('cloud').checked = false; updateCloudDisplay();
   try { await api('/api/auth/logout', {}); await config(); notice('已登出伴讀專案的 ChatGPT 帳號。'); }
   catch (error) { notice(error.message); }
 };

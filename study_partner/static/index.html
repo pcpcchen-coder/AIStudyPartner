@@ -7,6 +7,10 @@
 <header><a class="brand" href="/" aria-label="AIStudyPartner 首頁"><span class="brand-icon">◈</span><span>AIStudyPartner<small>你的桌邊伴讀夥伴</small></span></a><div class="header-right"><span class="pill">GPT-6 Astra · 多科目</span><button id="clear" class="subtle">結束並清除</button></div></header>
 <main>
 <section class="intro"><div><span class="eyebrow">A LITTLE HELP. A LOT OF DISCOVERY.</span><h1>一起，把想法寫出來。</h1><p>你慢慢想，我陪你看。從一個小提示，走到自己的答案。</p></div><div class="session-note"><span class="status-dot"></span><span id="status">準備好，就開始吧</span></div></section>
+<div id="cloudAttention" class="cloud-attention" data-enabled="false">
+<div role="status" aria-live="polite"><strong id="cloudAttentionTitle">AI 分析尚未開啟</strong><p id="cloudAttentionText">尚未勾選傳送許可，AI 不會讀取作業。請先設定，才不會空等；示範作業仍可使用。</p></div>
+<button id="cloudSettings" class="primary">設定雲端分析</button>
+</div>
 <div class="workspace">
 <section class="desk panel">
 <div class="panel-heading"><div><span class="step">01</span><h2>我的作業桌</h2></div><span id="sourceBadge" class="badge">尚未開啟鏡頭</span></div>
@@ -16,7 +20,7 @@
 <div class="camera-actions orientation-controls" role="group" aria-label="畫面方向"><span class="muted">畫面方向</span><button id="flipHorizontal" aria-pressed="false" disabled>↔ 左右翻轉</button><button id="flipVertical" aria-pressed="false" disabled>↕ 上下翻轉</button><button id="resetOrientation" class="subtle" disabled>還原方向</button></div>
 <p class="muted" id="motionText">鏡頭只用來看作業，不開啟麥克風。</p>
 <details class="settings"><summary>鏡頭與陪讀設定</summary><label>攝影機<select id="camera"><option value="">系統預設攝影機</option></select></label><div class="select-row"><label>最短分析間隔<select id="interval"><option value="15000">15 秒</option><option value="30000" selected>30 秒</option><option value="60000">60 秒</option></select></label><label>停筆提示時間<select id="idle"><option value="20000">20 秒</option><option value="30000" selected>30 秒</option><option value="60000">60 秒</option></select></label></div><label class="check"><input id="auto" type="checkbox" checked>尚未讀題時，畫面穩定後自動讀取一次</label><label class="check"><input id="voice" type="checkbox">使用 Mac 已安裝的中文語音</label><p class="muted">停筆依畫面變化估計；翻頁、光影或手部遮擋可能影響判斷。</p></details>
-<div class="cloud-box"><label class="check"><input type="checkbox" id="cloud">允許傳送作業至 OpenAI 進行分析</label><p>只傳送框選圖片、年級、科目與作答文字。請避開姓名與人臉；雲端使用與資料保留依 ChatGPT／Codex 帳戶政策。</p><div class="camera-actions"><button id="login">登入 ChatGPT</button><button id="refreshAuth" class="subtle">登入後重新檢查</button><button id="logout" class="subtle" hidden>登出伴讀帳號</button></div><a id="loginLink" target="_blank" rel="noopener noreferrer" hidden>開啟官方登入頁面 ↗</a><p id="modelStatus">正在檢查模型設定…</p><span id="usage" class="muted"></span></div>
+<div class="cloud-box" id="cloudBox" data-enabled="false"><p id="cloudHelp" class="cloud-help">尚未開啟：勾選下方許可後，AI 才能讀題與提供教學。</p><label class="check"><input type="checkbox" id="cloud" aria-describedby="cloudHelp">允許傳送作業至 OpenAI 進行分析</label><p>只傳送框選圖片、年級、科目與作答文字。請避開姓名與人臉；雲端使用與資料保留依 ChatGPT／Codex 帳戶政策。</p><div class="camera-actions"><button id="login">登入 ChatGPT</button><button id="refreshAuth" class="subtle">登入後重新檢查</button><button id="logout" class="subtle" hidden>登出伴讀帳號</button></div><a id="loginLink" target="_blank" rel="noopener noreferrer" hidden>開啟官方登入頁面 ↗</a><p id="modelStatus">正在檢查模型設定…</p><span id="usage" class="muted"></span></div>
 </section>
 <section class="companion panel">
 <div class="panel-heading"><div><span class="step">02</span><h2>一起想一想</h2></div><span class="badge teal">先提示，再解答</span></div>
@@ -39,6 +43,15 @@
 <p class="processing-guidance">完成後會自動回到作業畫面，再繼續下一步。<br>目前的題目與教學內容都會保留。</p>
 <p id="processingElapsed" class="muted" aria-live="off">已等待 0 秒</p>
 <button id="cancelProcessing" class="subtle" autofocus>取消這次處理</button>
+</div>
+</dialog>
+<dialog id="cloudReminder" class="processing-dialog" aria-labelledby="cloudReminderTitle" aria-describedby="cloudReminderText">
+<div class="processing-card cloud-reminder-card">
+<div class="cloud-reminder-symbol" aria-hidden="true">!</div>
+<h2 id="cloudReminderTitle">還沒開啟 AI 分析</h2>
+<p id="cloudReminderText">目前尚未勾選「允許傳送作業至 OpenAI 進行分析」，因此 AI 不會開始讀題或教學。</p>
+<p class="processing-guidance">請先勾選許可，再回來操作。只會傳送框選作業、年級、科目與作答文字；請避開姓名與人臉。</p>
+<div class="cloud-reminder-actions"><button id="goToCloud" class="primary" autofocus>前往勾選設定</button><button id="dismissCloudReminder">暫時不開啟</button></div>
 </div>
 </dialog>
 </body></html>

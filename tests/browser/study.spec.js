@@ -54,6 +54,7 @@ test('fake camera starts locally and pause prevents analysis', async ({ page }) 
   await page.locator('#capture').click();
   await expect(page.locator('#notice')).toContainText('請先開啟雲端分析');
   expect(observations).toHaveLength(0);
+  await page.locator('#dismissCloudReminder').click();
   await page.locator('#pause').click();
   await expect(page.locator('#status')).toContainText('已暫停');
   await expect(page.locator('#capture')).toBeDisabled();
