@@ -6,6 +6,7 @@ import warnings
 from PIL import Image, UnidentifiedImageError
 
 from .codex_bridge import BridgeError, CodexBridge
+from .models import DEFAULT_MODEL, MODELS
 from .schemas import Observation, ObserveRequest, TutorAnalysis, TutorRequest
 
 SYSTEM = """你是溫和、耐心的繁體中文伴讀老師。依指定年級調整詞彙和難度。
@@ -48,7 +49,9 @@ def normalize_image(data: str) -> str:
 
 class CodexProvider:
     def __init__(self):
-        self.model = os.getenv("STUDY_MODEL", "gpt-6-astra")
+        self.model = os.getenv("STUDY_MODEL", DEFAULT_MODEL)
+        if self.model not in {item["id"] for item in MODELS}:
+            raise ValueError("STUDY_MODEL must be a supported GPT-6 model")
         self.bridge = CodexBridge()
         self.calls = 0
         self.input_tokens = 0
@@ -69,6 +72,7 @@ class CodexProvider:
         return {
             "ready": auth["authenticated"],
             "model": self.model,
+            "models": MODELS,
             "message": message,
             **auth,
             "calls": self.calls,
@@ -77,13 +81,13 @@ class CodexProvider:
             "output_tokens": self.output_tokens,
         }
 
-    async def generate(self, schema, payload, image=None):
+    async def generate(self, schema, payload, image=None, model=None):
         if self.calls >= self.max_calls:
             raise ProviderError("本次啟動的模型呼叫上限已到，請先檢視方案用量。")
         self.calls += 1
         try:
             output, usage = await self.bridge.generate(
-                self.model,
+                model or self.model,
                 SYSTEM,
                 payload,
                 schema.model_json_schema(),
@@ -110,6 +114,7 @@ class CodexProvider:
                 "grade": request.grade,
             },
             image,
+            model=request.model,
         )
 
     async def tutor(self, request: TutorRequest, image=None):
@@ -127,4 +132,5 @@ class CodexProvider:
                 "student_answer": request.student_answer,
             },
             image,
+            model=request.model,
         )

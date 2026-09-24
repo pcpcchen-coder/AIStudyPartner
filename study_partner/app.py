@@ -128,7 +128,7 @@ async def observe(body: ObserveRequest, request: Request):
         raise HTTPException(429, "目前正在分析，請等這一題完成。")
     async with lock:
         result = await provider.observe(body, image)
-    return {"observation": result, "source": "openai"}
+    return {"observation": result, "source": "openai", "model": body.model or provider.model}
 
 
 @app.post("/api/tutor")
@@ -151,7 +151,8 @@ async def tutor(body: TutorRequest, request: Request):
                 raise HTTPException(422, str(exc)) from None
         # A short-lived bounded memory cache avoids paying again for each hint level.
         key = hashlib.sha256(
-            body.model_dump_json(exclude={"hint_level", "confirmed"}).encode()
+            body.model_copy(update={"model": body.model or provider.model})
+            .model_dump_json(exclude={"hint_level", "confirmed"}).encode()
         ).hexdigest()
         now = time.monotonic()
         for old in list(cache):
@@ -188,7 +189,7 @@ async def tutor(body: TutorRequest, request: Request):
         result.verdict = "in_progress"
     return {
         "source": source,
-        "model": provider.model if source == "openai" else "示範資料",
+        "model": (body.model or provider.model) if source == "openai" else "示範資料",
         "verdict": result.verdict,
         "verification": verification,
         "concept": result.concept,

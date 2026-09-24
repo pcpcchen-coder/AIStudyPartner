@@ -204,3 +204,55 @@ def test_browser_login_boundary(client, monkeypatch):
     assert client.post("/api/auth/login", json={}).status_code == 403
     response = client.post("/api/auth/login", headers=headers(client), json={})
     assert response.json()["auth_url"].startswith("https://auth.openai.com/")
+
+
+@pytest.mark.parametrize("model", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"])
+def test_selected_model_reaches_both_inference_stages(client, monkeypatch, model):
+    calls = []
+
+    async def generate(selected, instructions, data, schema, image, effort):
+        calls.append(selected)
+        fixture = demo("數學")[0 if effort == "low" else 1]
+        return fixture.model_dump_json(), {}
+
+    monkeypatch.setattr(module.provider.bridge, "generate", generate)
+    h = headers(client)
+    read = client.post("/api/observe", headers=h, json={"image": picture(), "model": model})
+    teach = client.post("/api/tutor", headers=h, json=payload(demo=False, model=model))
+    assert read.status_code == teach.status_code == 200
+    assert read.json()["model"] == teach.json()["model"] == model
+    assert calls == [model, model]
+
+
+def test_model_cache_isolation_and_invalid_selection(client, monkeypatch):
+    calls = []
+
+    async def generate(selected, *args):
+        calls.append(selected)
+        return demo("數學")[1].model_dump_json(), {}
+
+    monkeypatch.setattr(module.provider.bridge, "generate", generate)
+    h = headers(client)
+    for model in ["gpt-6-sol", "gpt-6-luna", "gpt-6-sol"]:
+        response = client.post("/api/tutor", headers=h, json=payload(demo=False, model=model))
+        assert response.status_code == 200
+        assert response.json()["model"] == model
+    assert calls == ["gpt-6-sol", "gpt-6-luna"]
+    assert client.post("/api/tutor", headers=h, json=payload(demo=False, model="unknown")).status_code == 422
+    assert client.post("/api/observe", headers=h, json={"image": picture(), "model": "unknown"}).status_code == 422
+    assert calls == ["gpt-6-sol", "gpt-6-luna"]
+
+
+def test_unavailable_selected_model_never_falls_back(client, monkeypatch):
+    from study_partner.codex_bridge import BridgeError
+
+    calls = []
+
+    async def unavailable(model, *args):
+        calls.append(model)
+        raise BridgeError("所選模型暫時無法使用")
+
+    monkeypatch.setattr(module.provider.bridge, "generate", unavailable)
+    response = client.post("/api/tutor", headers=headers(client), json=payload(demo=False, model="gpt-6-luna"))
+    assert response.status_code == 503
+    assert calls == ["gpt-6-luna"]

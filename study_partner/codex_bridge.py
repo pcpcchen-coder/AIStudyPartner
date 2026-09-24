@@ -283,7 +283,7 @@ skip_host_skill_discovery = true
                     elif method == "bridge/closed":
                         raise BridgeError("Codex 引擎已停止，請重新啟動。")
         except TimeoutError as exc:
-            raise BridgeError("Astra 回應逾時，已停止自動分析。") from exc
+            raise BridgeError("AI 回應逾時，已停止自動分析。") from exc
         finally:
             if turn_id:
                 with contextlib.suppress(BridgeError):

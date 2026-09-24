@@ -39,7 +39,7 @@ test('full-page modal blocks background and stays open from recognition through 
   await page.locator('#capture').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await expect(page.locator('#processingTitle')).toContainText('Astra 正在辨識');
+  await expect(page.locator('#processingTitle')).toContainText('AI 正在辨識');
   expect(await dialog.evaluate(element => element.matches(':modal'))).toBe(true);
   await expect(page.locator('main')).toHaveAttribute('aria-busy', 'true');
   expect(await dialog.boundingBox()).toMatchObject({ x: 0, y: 0, width: 1440, height: 1100 });

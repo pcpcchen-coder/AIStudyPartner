@@ -1,4 +1,4 @@
-# 架構｜Mac 感測 + ChatGPT OAuth + Astra 教學
+# 架構｜Mac 感測 + ChatGPT OAuth + AI 教學
 
 ```mermaid
 flowchart LR
@@ -8,7 +8,7 @@ flowchart LR
   C <-->|JSON-RPC over stdio| D[獨立 Codex App Server]
   D --> L[官方瀏覽器 OAuth 登入]
   L --> D
-  D <-->|ChatGPT 方案與模型權限| E[GPT-6 Astra]
+  D <-->|ChatGPT 方案與模型權限| E[GPT-6 系列]
   E --> F[題目擷取 / 教學結構化輸出]
   F --> C
   C --> G[確認門檻 / 算式核算 / 提示階梯]
@@ -35,7 +35,7 @@ flowchart LR
 
 ## 3. 模型內容與協定
 
-- 預設 `gpt-6-astra`，不暗中換模型。
+- 提供 GPT-6 系列下拉選單；首次預設 `gpt-6-astra`，之後記住此瀏覽器的選擇。每次請求明確帶模型，快取依模型隔離，不暗中換模型。
 - `thread/start` 以 baseInstructions/developerInstructions 設定伴讀角色。
 - `turn/start` 傳入 text 與 image data URL，`outputSchema` 來自 Pydantic。
 - 讀題 effort=low，教學 effort=medium。沒有直接使用 Responses API 的 store 或 pricing 設定。

@@ -12,7 +12,9 @@ sys.path[:0] = [str(SOURCE), str(RESOURCES / "packages")]
 os.environ["STUDY_BUNDLE_BOOTSTRAP"] = str(Path(__file__).resolve())
 os.environ["STUDY_CODEX_BIN"] = str(RESOURCES / "codex/bin/codex")
 os.environ.setdefault("STUDY_RUNTIME_DIR", str(Path.home() / "Library/Application Support/AIStudyPartner"))
-os.environ["STUDY_MODEL"] = "gpt-6-astra"
+from study_partner.models import DEFAULT_MODEL
+
+os.environ["STUDY_MODEL"] = DEFAULT_MODEL
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
 

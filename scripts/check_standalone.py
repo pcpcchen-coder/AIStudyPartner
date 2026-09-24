@@ -57,6 +57,7 @@ def check(app):
             assert json.loads(state.read_text()) == first
             config = request("/api/config")
             assert not config["ready"]
+            assert {model["id"] for model in config["models"]} == {"gpt-6-astra", "gpt-6-sol", "gpt-6-luna"}
             login = request("/api/auth/login", config["token"])
             assert urlparse(login["auth_url"]).hostname in {"auth.openai.com", "chatgpt.com"}
             assert request("/api/auth/logout", config["token"])["logged_out"]

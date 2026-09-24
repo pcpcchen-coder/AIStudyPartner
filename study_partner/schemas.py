@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .models import ModelId
+
 Subject = Literal["數學", "國語", "英文", "自然", "社會", "其他"]
 Grade = Literal["國小低年級", "國小中年級", "國小高年級", "國中", "高中"]
 
@@ -21,12 +23,14 @@ class Observation(StrictModel):
 
 
 class ObserveRequest(StrictModel):
+    model: ModelId | None = None
     image: str = Field(max_length=4_000_000)
     subject: Subject = "數學"
     grade: Grade = "國小高年級"
 
 
 class TutorRequest(StrictModel):
+    model: ModelId | None = None
     question: str = Field(min_length=1, max_length=3000)
     student_answer: str = Field(default="", max_length=2000)
     subject: Subject = "數學"

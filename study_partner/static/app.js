@@ -10,6 +10,8 @@ const gate = new MotionGate(performance.now());
 let stream = null, demoMode = false, paused = true, busy = false, confirmed = false;
 let flipX = false, flipY = false, cameraGeneration = 0;
 let roi = { x: 0.06, y: 0.08, w: 0.88, h: 0.8 }, drag = null, snapshot = null;
+let modelInitialized = false;
+let selectedModel = $('model').value;
 let token = '', generation = 0, controller = null, activeHint = null, hintLevel = 0;
 let session = [], currentExercises = [], latestSample = null;
 let processingTimer = null, processingStarted = 0;
@@ -17,7 +19,7 @@ let lastTick = 0, editorFocused = false, lessonActive = false, reading = false;
 
 function notice(text = '') { $('notice').textContent = text; $('notice').hidden = !text; }
 function status(text) { $('status').textContent = text; }
-function context() { return { grade: $('grade').value, subject: $('subject').value }; }
+function context() { return { grade: $('grade').value, subject: $('subject').value, model: selectedModel }; }
 function updateCloudDisplay() {
   const enabled = $('cloud').checked;
   $('cloudAttention').dataset.enabled = String(enabled);
@@ -49,6 +51,7 @@ $('goToCloud').onclick = () => {
 updateCloudDisplay();
 
 function showProcessing(title, description) {
+  $('model').disabled = true;
   $('processingTitle').textContent = title;
   $('processingDescription').textContent = description;
   if ($('processingDialog').open) return; // Keep the overlay up between reading and preparing hints.
@@ -63,6 +66,7 @@ function showProcessing(title, description) {
   }, 1000);
 }
 function hideProcessing() {
+  $('model').disabled = false;
   clearInterval(processingTimer); processingTimer = null;
   if ($('processingDialog').open) $('processingDialog').close();
   document.documentElement.classList.remove('processing');
@@ -123,7 +127,20 @@ async function config() {
   if (!response.ok) throw new Error('無法連接本機服務。');
   const result = await response.json(); token = result.token;
   $('login').hidden = result.authenticated; $('logout').hidden = !result.authenticated;
-  $('modelStatus').textContent = `${result.model} · ${result.message}`;
+  if (!modelInitialized) {
+    if (result.models?.length) {
+      $('model').replaceChildren(...result.models.map(model => {
+        const option = document.createElement('option'); option.value = model.id;
+        option.textContent = model.label; return option;
+      }));
+    }
+    let saved = '';
+    try { saved = localStorage.getItem('study-model') || ''; } catch { /* Storage may be unavailable. */ }
+    const choices = [...$('model').options].map(option => option.value);
+    selectedModel = choices.includes(saved) ? saved : (choices.includes(result.model) ? result.model : choices[0]);
+    $('model').value = selectedModel; modelInitialized = true;
+  }
+  $('modelStatus').textContent = result.message;
   $('usage').textContent = `本次啟動 ${result.calls} / ${result.max_calls} 次模型請求 · 輸入 ${result.input_tokens}、輸出 ${result.output_tokens} tokens`;
 }
 async function api(path, payload, signal) {
@@ -234,8 +251,8 @@ async function observe() {
   try {
     const image = captureImage(), sample = motionSample();
     setLessonActive(true); reading = true;
-    gate.markSent(sample, performance.now()); status('Astra 正在看題目…');
-    showProcessing('Astra 正在辨識題目…', '正在閱讀框選的作業與作答，接著會準備適合這一題的提示。');
+    gate.markSent(sample, performance.now()); status('AI 正在看題目…');
+    showProcessing('AI 正在辨識題目…', '正在閱讀框選的作業與作答，接著會準備適合這一題的提示。');
     const data = await api('/api/observe', { image, ...context() }, abort.signal);
     if (epoch !== generation) return;
     reading = false; snapshot = image;
@@ -256,8 +273,8 @@ async function tutor(level = 1, confirm = confirmed, quiet = false) {
   if (busy || !$('question').value.trim()) return;
   if (!demoMode && !$('cloud').checked) { showCloudReminder(); return; }
   busy = true; const epoch = generation; const abort = new AbortController(); controller = abort;
-  status('Astra 正在整理提示…');
-  showProcessing(demoMode ? '正在準備示範教學…' : (level === 3 ? 'Astra 正在整理說明與複習題…' : 'Astra 正在整理提示…'),
+  status('AI 正在整理提示…');
+  showProcessing(demoMode ? '正在準備示範教學…' : (level === 3 ? 'AI 正在整理說明與複習題…' : 'AI 正在整理提示…'),
     demoMode ? '正在載入固定教材，這次不會呼叫 AI。' : (level === 3 ? '正在準備一步一步的說明，以及幫助理解的練習。' : '正在思考這一題，準備適合你的引導。'));
   try {
     const data = await api('/api/tutor', { ...context(), question: $('question').value.trim(),
@@ -352,6 +369,14 @@ function endDrag() {
   gate.reset(performance.now()); status(lessonActive ? '框選已更新，本題保留到你按下一題' : '題目範圍已更新');
 }
 view.addEventListener('pointerup', endDrag); view.addEventListener('pointercancel', endDrag);
+$('model').onchange = () => {
+  if (busy) { $('model').value = selectedModel; return; }
+  cancel(); selectedModel = $('model').value;
+  activeHint = null; hintLevel = 0;
+  try { localStorage.setItem('study-model', selectedModel); } catch { /* Keep the choice for this page. */ }
+  status('模型已切換，下次分析使用新模型');
+  notice('現有提示、說明與複習作答保留；下次讀題或要求教學時使用所選模型。');
+};
 $('start').onclick = startCamera; $('resume').onclick = startCamera; $('camera').onchange = startCamera;
 $('demo').onclick = () => loadDemo().catch(e => notice(e.message));
 $('capture').onclick = observe;

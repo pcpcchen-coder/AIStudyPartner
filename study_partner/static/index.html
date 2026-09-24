@@ -4,7 +4,7 @@
 <title>AIStudyPartner · 一起，把想法寫出來</title><link rel="stylesheet" href="/style.css">
 <script type="module" src="/app.js"></script></head>
 <body>
-<header><a class="brand" href="/" aria-label="AIStudyPartner 首頁"><span class="brand-icon">◈</span><span>AIStudyPartner<small>你的桌邊伴讀夥伴</small></span></a><div class="header-right"><span class="pill">GPT-6 Astra · 多科目</span><button id="clear" class="subtle">結束並清除</button></div></header>
+<header><a class="brand" href="/" aria-label="AIStudyPartner 首頁"><span class="brand-icon">◈</span><span>AIStudyPartner<small>你的桌邊伴讀夥伴</small></span></a><div class="header-right"><span class="pill">GPT-6 系列 · 多科目</span><button id="clear" class="subtle">結束並清除</button></div></header>
 <main>
 <section class="intro"><div><span class="eyebrow">A LITTLE HELP. A LOT OF DISCOVERY.</span><h1>一起，把想法寫出來。</h1><p>你慢慢想，我陪你看。從一個小提示，走到自己的答案。</p></div><div class="session-note"><span class="status-dot"></span><span id="status">準備好，就開始吧</span></div></section>
 <div id="cloudAttention" class="cloud-attention" data-enabled="false">
@@ -15,6 +15,7 @@
 <section class="desk panel">
 <div class="panel-heading"><div><span class="step">01</span><h2>我的作業桌</h2></div><span id="sourceBadge" class="badge">尚未開啟鏡頭</span></div>
 <div class="select-row"><label>學習階段<select id="grade"><option>國小低年級</option><option>國小中年級</option><option selected>國小高年級</option><option>國中</option><option>高中</option></select></label><label>今天的科目<select id="subject"><option>數學</option><option>國語</option><option>英文</option><option>自然</option><option>社會</option><option>其他</option></select></label></div>
+<div class="model-settings"><label for="model">伴讀模型</label><select id="model" aria-describedby="modelHelp"><option value="gpt-6-astra">GPT-6 Astra</option><option value="gpt-6-sol">GPT-6 Sol</option><option value="gpt-6-luna">GPT-6 Luna</option></select><p id="modelHelp" class="muted">選擇會記在此瀏覽器；切換後，下次分析使用新模型，現有教學保留。模型可用性依 ChatGPT 帳號權限與額度為準。</p></div>
 <div class="camera-stage" id="stage"><video id="video" autoplay muted playsinline hidden></video><canvas id="view" width="1200" height="750" aria-label="作業預覽，可拖曳框選目前題目"></canvas><div id="placeholder"><div class="camera-symbol">▣</div><h3>把作業放在鏡頭前</h3><p>從前上方拍攝，讓題目和筆跡清楚入鏡。<br>開啟後，拖曳框選正在寫的那一題。</p><button id="start" class="primary">開啟攝影機</button><button id="demo" class="text-button">先用示範作業試試 →</button></div><span class="frame-label" id="frameLabel" hidden>拖曳框選題目 · 只傳送框內畫面</span></div>
 <div class="camera-actions"><button id="capture" disabled>看一下這一題</button><button id="pause" disabled>暫停陪讀</button><button id="resume" hidden>重新開啟鏡頭</button><button id="resetCrop" disabled class="subtle">重設範圍</button></div>
 <div class="camera-actions orientation-controls" role="group" aria-label="畫面方向"><span class="muted">畫面方向</span><button id="flipHorizontal" aria-pressed="false" disabled>↔ 左右翻轉</button><button id="flipVertical" aria-pressed="false" disabled>↕ 上下翻轉</button><button id="resetOrientation" class="subtle" disabled>還原方向</button></div>
@@ -39,7 +40,7 @@
 <div class="processing-card">
 <div class="processing-spinner" aria-hidden="true"></div>
 <span class="eyebrow">處理中 · 請稍候</span>
-<div role="status" aria-live="polite" aria-atomic="true"><h2 id="processingTitle">Astra 正在辨識題目…</h2><p id="processingDescription">正在閱讀框選的作業與作答。</p></div>
+<div role="status" aria-live="polite" aria-atomic="true"><h2 id="processingTitle">AI 正在辨識題目…</h2><p id="processingDescription">正在閱讀框選的作業與作答。</p></div>
 <p class="processing-guidance">完成後會自動回到作業畫面，再繼續下一步。<br>目前的題目與教學內容都會保留。</p>
 <p id="processingElapsed" class="muted" aria-live="off">已等待 0 秒</p>
 <button id="cancelProcessing" class="subtle" autofocus>取消這次處理</button>
