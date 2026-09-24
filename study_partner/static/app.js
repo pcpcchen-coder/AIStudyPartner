@@ -51,7 +51,7 @@ $('goToCloud').onclick = () => {
 updateCloudDisplay();
 
 function showProcessing(title, description) {
-  $('model').disabled = true;
+  $('model').disabled = true; $('reread').disabled = true;
   $('processingTitle').textContent = title;
   $('processingDescription').textContent = description;
   if ($('processingDialog').open) return; // Keep the overlay up between reading and preparing hints.
@@ -67,6 +67,7 @@ function showProcessing(title, description) {
 }
 function hideProcessing() {
   $('model').disabled = false;
+  updateRereadButton();
   clearInterval(processingTimer); processingTimer = null;
   if ($('processingDialog').open) $('processingDialog').close();
   document.documentElement.classList.remove('processing');
@@ -93,15 +94,18 @@ function cancel() {
 function clearLesson() {
   confirmed = false; activeHint = null; hintLevel = 0;
   $('hint').disabled = !$('question').value.trim(); $('confirm').disabled = !$('question').value.trim();
-  $('solution').disabled = true; $('explanationBlock').hidden = true;
+  $('solution').disabled = true; $('explanationBlock').hidden = true; $('explanation').textContent = '';
   $('verdict').textContent = '確認文字後再檢查答案';
   $('hintTitle').textContent = '先給自己一點思考時間';
   $('hintText').textContent = '需要的時候，按下「給我提示」。我會先給方向，不急著說出答案。';
   $('hintLabel').textContent = 'A SMALL NUDGE';
   $('exercises').replaceChildren(); currentExercises = []; $('reviewEmpty').hidden = false;
 }
+function updateRereadButton() {
+  $('reread').disabled = !lessonActive || demoMode || !stream || paused || busy;
+}
 function setLessonActive(active) {
-  lessonActive = active;
+  lessonActive = active; updateRereadButton();
   $('nextQuestion').disabled = !active; $('demo').disabled = active;
   $('subject').disabled = active; $('grade').disabled = active;
   $('capture').disabled = active || paused || !stream;
@@ -154,6 +158,7 @@ async function api(path, payload, signal) {
 function stopCamera() {
   cameraGeneration++;
   stream?.getTracks().forEach(track => track.stop()); stream = null; video.srcObject = null;
+  updateRereadButton();
   $('capture').disabled = true; $('pause').disabled = true; $('resetCrop').disabled = true;
   for (const id of ['flipHorizontal', 'flipVertical', 'resetOrientation']) $(id).disabled = true;
 }
@@ -174,7 +179,7 @@ async function startCamera() {
     $('sourceBadge').textContent = '即時鏡頭 · 本機預覽';
     $('capture').disabled = lessonActive; $('pause').disabled = false; $('resetCrop').disabled = false;
     for (const id of ['flipHorizontal', 'flipVertical', 'resetOrientation']) $(id).disabled = false;
-    $('pause').textContent = '暫停陪讀'; paused = false; gate.reset(performance.now());
+    $('pause').textContent = '暫停陪讀'; paused = false; updateRereadButton(); gate.reset(performance.now());
     status(lessonActive ? '相機已開啟，本題教學繼續保留' : '請拖曳框選目前題目');
     if (!lessonActive) notice('請先框選單一題目，避開姓名與人臉，再開啟雲端分析。');
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -234,33 +239,47 @@ function paint() {
   }
   requestAnimationFrame(paint);
 }
+function usableObservation(observation) {
+  return observation.quality === 'clear' && observation.confidence >= 0.85 && observation.question.trim();
+}
 function applyObservation(observation) {
   $('question').value = observation.question; $('answer').value = observation.student_answer;
   clearLesson(); setLessonActive(true);
   $('confidence').textContent = demoMode ? '人工編寫示範' : `模型自評 ${Math.round(observation.confidence * 100)}% · 非校準機率`;
-  const usable = observation.quality === 'clear' && observation.confidence >= 0.85 && observation.question.trim();
-  notice(usable ? '' : (observation.clarification || '題目看不清楚，請修正文字，或按「下一題」後重新框選讀取，暫不判斷對錯。'));
+  const usable = usableObservation(observation);
+  notice(usable ? '' : (observation.clarification || '題目看不清楚，請修正文字，或重新框選後按「辨識有誤，重新讀取本題」，暫不判斷對錯。'));
   $('coachTitle').textContent = usable ? '先看看，我有沒有讀對。' : '我們先把題目看清楚。';
   $('coachText').textContent = `現在陪你練習${$('subject').value}，提示會依${$('grade').value}調整。`;
   return usable;
 }
-async function observe() {
-  if (busy || paused || !stream || lessonActive) return;
+async function observe(reread = false) {
+  if (busy || paused || !stream || (lessonActive && !reread)) return;
+  if (reread && (!lessonActive || demoMode)) return;
   if (!$('cloud').checked) { showCloudReminder(); return; }
   busy = true; const epoch = generation; const abort = new AbortController(); controller = abort;
   try {
     const image = captureImage(), sample = motionSample();
-    setLessonActive(true); reading = true;
+    setLessonActive(true); reading = !reread;
     gate.markSent(sample, performance.now()); status('AI 正在看題目…');
-    showProcessing('AI 正在辨識題目…', '正在閱讀框選的作業與作答，接著會準備適合這一題的提示。');
+    showProcessing(reread ? 'AI 正在重新讀取本題…' : 'AI 正在辨識題目…',
+      reread ? '正在使用目前鏡頭與框選範圍重新辨識；取得清楚的新結果前，原有教學與作答都會保留。'
+        : '正在閱讀框選的作業與作答，接著會準備適合這一題的提示。');
     const data = await api('/api/observe', { image, ...context() }, abort.signal);
     if (epoch !== generation) return;
+    if (reread && !usableObservation(data.observation)) {
+      status('重新辨識仍不清楚，原有內容已保留');
+      notice(`原有題目與教學未變更。${data.observation.clarification || '請調整光線、鏡頭或框選範圍後重試，也可直接修正文字。'}`);
+      return;
+    }
     reading = false; snapshot = image;
     const usable = applyObservation(data.observation); status('題目已讀取');
     busy = false;
-    if (usable) await tutor(1, false, true);
+    if (reread) {
+      status('本題已重新讀取，請核對文字');
+      notice('已更新題目與作答，舊教學已重置。核對後請按「文字正確，幫我看看」，再重新準備提示。');
+    } else if (usable) await tutor(1, false, true);
   } catch (error) {
-    if (epoch === generation && !snapshot && !$('question').value.trim()) setLessonActive(false);
+    if (!reread && epoch === generation && !snapshot && !$('question').value.trim()) setLessonActive(false);
     fail(error, epoch);
   }
   finally { if (epoch === generation) { reading = false; busy = false; controller = null; hideProcessing(); } config().catch(() => {}); }
@@ -379,7 +398,8 @@ $('model').onchange = () => {
 };
 $('start').onclick = startCamera; $('resume').onclick = startCamera; $('camera').onchange = startCamera;
 $('demo').onclick = () => loadDemo().catch(e => notice(e.message));
-$('capture').onclick = observe;
+$('capture').onclick = () => observe();
+$('reread').onclick = () => observe(true);
 $('pause').onclick = () => {
   paused = !paused; cancel();
   $('pause').textContent = paused ? '繼續陪讀' : '暫停陪讀'; $('capture').disabled = paused || lessonActive;
@@ -396,7 +416,7 @@ function setOrientation(horizontal, vertical) {
   $('flipVertical').setAttribute('aria-pressed', String(flipY));
   cameraChanged();
   status(paused ? '畫面方向已更新；陪讀仍暫停' : '畫面方向已更新，請確認框選題目');
-  notice(lessonActive ? '畫面方向已更新；本題圖片與教學保留，按下一題後才使用新畫面。' : '預覽、框選截圖與停筆偵測已同步翻轉。');
+  notice(lessonActive ? '畫面方向已更新；本題圖片與教學保留；可重新讀取本題，或按下一題後使用新畫面。' : '預覽、框選截圖與停筆偵測已同步翻轉。');
 }
 $('flipHorizontal').onclick = () => setOrientation(!flipX, flipY);
 $('flipVertical').onclick = () => setOrientation(flipX, !flipY);

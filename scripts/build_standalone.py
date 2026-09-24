@@ -18,7 +18,7 @@ from urllib.request import urlopen
 from build_macos_app import applescript_string, icon
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 PYTHON_URL = ("https://github.com/astral-sh/python-build-standalone/releases/download/20260325/"
               "cpython-3.12.13%2B20260325-aarch64-apple-darwin-pgo%2Blto-full.tar.zst")
 PYTHON_SHA256 = "a472b083d9c68289836bb6617b921de205a10387e07bb302c1dc8a46c4db758e"
@@ -170,7 +170,7 @@ def build(output, identity="-", notary_profile=None):
         info = plistlib.loads(info_path.read_bytes())
         info.update(CFBundleIdentifier="local.aistudypartner.standalone", CFBundleName="AIStudyPartner 伴讀",
                     CFBundleDisplayName="AIStudyPartner 伴讀", CFBundleShortVersionString=VERSION,
-                    CFBundleVersion="4", OSAAppletStayOpen=True, LSUIElement=False,
+                    CFBundleVersion="5", OSAAppletStayOpen=True, LSUIElement=False,
                     LSBackgroundOnly=False, LSMultipleInstancesProhibited=True,
                     LSMinimumSystemVersion=".".join(map(str, min_os)), CFBundleIconFile="StudyPartner.icns")
         info.pop("CFBundleIconName", None)

@@ -158,3 +158,102 @@ test('cancelling the first read allows retry after pausing and resuming', async 
   await expect(page.locator('#capture')).toBeEnabled();
   await expect(page.locator('#question')).toHaveValue('');
 });
+
+async function prepareReread(page, rereadResponse) {
+  const captures = [], requests = [];
+  await page.route('**/api/observe', async route => {
+    captures.push(route.request().postDataJSON());
+    if (captures.length === 1) await route.fulfill({ json: observation() });
+    else await rereadResponse(route);
+  });
+  await page.route('**/api/tutor', async route => {
+    const body = route.request().postDataJSON(); requests.push(body);
+    await route.fulfill({ json: teaching(body.hint_level) });
+  });
+  await camera(page);
+  await expect(page.locator('#reread')).toBeDisabled();
+  await page.locator('#capture').click();
+  await expect(page.locator('#status')).toContainText('提示已準備好');
+  await page.locator('#confirm').click();
+  await expect(page.locator('#solution')).toBeEnabled();
+  await page.locator('#solution').click();
+  await expect(page.locator('#explanationBlock')).toBeVisible();
+  await page.locator('.exercise textarea').fill('保留我的練習作答');
+  return { captures, requests };
+}
+async function expectOriginalLesson(page) {
+  await expect(page.locator('#question')).toHaveValue('第一題');
+  await expect(page.locator('#explanation')).toHaveText('保留完整教學說明');
+  await expect(page.locator('#explanationBlock')).toBeVisible();
+  await expect(page.locator('.exercise textarea')).toHaveValue('保留我的練習作答');
+  await expect(page.locator('#solution')).toBeEnabled();
+}
+
+test('reread commits a fresh camera snapshot only after success and requires confirmation again', async ({ page }) => {
+  let finish;
+  const hold = new Promise(resolve => { finish = resolve; });
+  const { captures, requests } = await prepareReread(page, async route => {
+    await hold; await route.fulfill({ json: observation('修正後的本題') });
+  });
+  await page.locator('#pause').click();
+  await expect(page.locator('#reread')).toBeDisabled();
+  await page.locator('#pause').click();
+  await expect(page.locator('#reread')).toBeEnabled();
+  await moveCamera(page, 'black');
+  await page.locator('#reread').click();
+  await expect(page.locator('#processingTitle')).toHaveText('AI 正在重新讀取本題…');
+  await expect(page.locator('#reread')).toBeDisabled();
+  await expectOriginalLesson(page);
+  finish();
+  await expect(page.locator('#processingDialog')).not.toBeVisible();
+  await expect(page.locator('#question')).toHaveValue('修正後的本題');
+  await expect(page.locator('#solution')).toBeDisabled();
+  await expect(page.locator('#explanationBlock')).toBeHidden();
+  await expect(page.locator('.exercise')).toHaveCount(0);
+  expect(captures).toHaveLength(2);
+  expect(captures[1].image).not.toBe(captures[0].image);
+  expect(requests).toHaveLength(3); // Rereading itself does not start teaching.
+  await page.locator('#confirm').click();
+  await expect.poll(() => requests.length).toBe(4);
+  expect(requests.at(-1).image).toBe(captures[1].image);
+  expect(requests.at(-1).question).toBe('修正後的本題');
+});
+
+for (const result of ['error', 'unclear', 'cancel']) {
+  test(`reread ${result} preserves the complete lesson and its original image`, async ({ page }) => {
+    let finish;
+    const hold = new Promise(resolve => { finish = resolve; });
+    const { captures, requests } = await prepareReread(page, async route => {
+      await hold;
+      const response = observation('不應覆蓋本題');
+      if (result === 'unclear') Object.assign(response.observation, { confidence: 0.2, quality: 'blurred' });
+      await route.fulfill(result === 'error'
+        ? { status: 503, json: { detail: '測試：重新辨識失敗' } }
+        : { json: response }).catch(() => {});
+    });
+    await moveCamera(page, 'black');
+    await page.locator('#reread').click();
+    await expect(page.locator('#processingDialog')).toBeVisible();
+    await expect.poll(() => captures.length).toBe(2);
+    if (result === 'cancel') await page.locator('#cancelProcessing').click();
+    finish();
+    await expect(page.locator('#processingDialog')).not.toBeVisible();
+    await expectOriginalLesson(page);
+    await expect(page.locator('#reread')).toBeEnabled();
+    // A later teaching request must still use the original captured image.
+    const count = requests.length;
+    await page.locator('#confirm').click();
+    await expect.poll(() => requests.length).toBe(count + 1);
+    expect(requests.at(-1).image).toBe(captures[0].image);
+    expect(requests.at(-1).question).toBe('第一題');
+  });
+}
+
+test('reread cannot bypass cloud consent', async ({ page }) => {
+  const { captures } = await prepareReread(page, route => route.fulfill({ json: observation() }));
+  await page.locator('#cloud').uncheck();
+  await page.locator('#reread').click();
+  await expect(page.locator('#cloudReminder')).toBeVisible();
+  expect(captures).toHaveLength(1);
+  await expectOriginalLesson(page);
+});

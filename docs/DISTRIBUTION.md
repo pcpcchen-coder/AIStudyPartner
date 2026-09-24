@@ -1,6 +1,6 @@
 # 獨立 Mac 安裝包
 
-v0.3.1 提供 Apple Silicon（M 系列）Mac 的 DMG。它內附 Python 3.12.13、應用程式及官方公開發行的 Codex 0.156.1；收件者不需下載原始碼，也不需另裝 Python、uv、Node 或 Codex。這是本機 App 啟動器加瀏覽器介面，AI 分析仍需連網與自己的 ChatGPT 帳號。GPT-6 系列 是否可用依帳號權限與額度為準。
+v0.3.2 提供 Apple Silicon（M 系列）Mac 的 DMG。它內附 Python 3.12.13、應用程式及官方公開發行的 Codex 0.156.1；收件者不需下載原始碼，也不需另裝 Python、uv、Node 或 Codex。這是本機 App 啟動器加瀏覽器介面，AI 分析仍需連網與自己的 ChatGPT 帳號。GPT-6 系列 是否可用依帳號權限與額度為準。
 
 ## 安裝與使用
 
