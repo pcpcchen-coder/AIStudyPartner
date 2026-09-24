@@ -79,6 +79,15 @@ def sign(path, identity):
         raise RuntimeError(result.stderr.strip())
 
 
+def clean_finder_metadata(path):
+    # Finder metadata only. Quarantine and other security attributes remain intact.
+    for attribute in ("com.apple.ResourceFork", "com.apple.FinderInfo"):
+        result = subprocess.run(["/usr/bin/xattr", "-r", "-d", attribute, str(path)],
+                                capture_output=True, text=True, check=False)
+        if result.returncode and "No such xattr" not in result.stderr:
+            raise RuntimeError(result.stderr)
+
+
 def build(output, identity="-", notary_profile=None):
     if sys.platform != "darwin" or platform.machine() != "arm64":
         raise ValueError("This builder currently targets Apple Silicon macOS only.")
@@ -184,12 +193,7 @@ def build(output, identity="-", notary_profile=None):
             "OpenAI Codex 0.156.1 (Apache-2.0): licenses/CODEX-LICENSE and CODEX-NOTICE.\n"
             "Only the Codex core binary is included; shell/code-mode/voice resources are not bundled.\n"
             "AIStudyPartner project: https://github.com/pcpcchen-coder/AIStudyPartner\n")
-        # Remove Finder metadata from staging only; never remove quarantine attributes.
-        for attribute in ("com.apple.FinderInfo", "com.apple.ResourceFork"):
-            result = subprocess.run(["/usr/bin/xattr", "-r", "-d", attribute, str(app)],
-                                    capture_output=True, text=True, check=False)
-            if result.returncode and "No such xattr" not in result.stderr:
-                raise RuntimeError(result.stderr)
+        clean_finder_metadata(app)
         for binary in binaries:
             sign(binary, identity)
         sign(app, identity)
@@ -199,9 +203,12 @@ def build(output, identity="-", notary_profile=None):
         if destination.exists():
             raise ValueError("Output already contains AIStudyPartner.app; choose an empty release directory.")
         shutil.move(app, destination)
-    image_dir = output / "installer-content"
-    image_dir.mkdir()
+    image_dir = Path(tempfile.mkdtemp(prefix="AIStudyPartner-dmg-"))
     shutil.copytree(destination, image_dir / "AIStudyPartner.app", symlinks=True)
+    # File providers can attach Finder metadata in Documents; stage the disk image
+    # outside synced folders and verify the exact App that will go into it.
+    clean_finder_metadata(image_dir / "AIStudyPartner.app")
+    run(["/usr/bin/codesign", "--verify", "--deep", "--strict", image_dir / "AIStudyPartner.app"])
     (image_dir / "Applications").symlink_to("/Applications")
     guide = (
         f"AIStudyPartner {VERSION} — Apple Silicon Mac, macOS {manifest['minimum_macos']} or later\n\n"
