@@ -36,7 +36,11 @@ bash scripts/start.sh
 
 開啟 **http://127.0.0.1:8765**。示範模式不需登入、不會呼叫模型；執行應用程式不需要 Node、Xcode 或 Docker。
 
-### Mac App 啟動（建議）
+### 獨立安裝包（分享給朋友）
+
+v0.3.0 的 Apple Silicon DMG 內附 Python 與官方 Codex，不依賴原專案。開啟 DMG 後把 App 拖到 Applications 即可安裝；朋友使用自己的 ChatGPT 帳號登入。目前為 **未經 Apple 公證的測試版**，其他 Mac 可能被 Gatekeeper 阻擋。[安裝與發行說明](docs/DISTRIBUTION.md)
+
+### 從原始碼建立 Mac App 啟動器
 
 1. 雙擊 `Install App.command`，安裝到 `~/Applications/AIStudyPartner.app`。
 2. 從「應用程式」或 Spotlight 搜尋 **AIStudyPartner** 並開啟；App 會啟動本機服務、開啟伴讀網頁並留在 Dock。
@@ -55,7 +59,7 @@ bash scripts/start.sh
 6. 讀題後，揮手、書寫、翻轉鏡頭或改框選都不會清掉本題教學。理解並完成練習後，按「我理解了，下一題」才清空並讀取下一題；切換年級／科目也在這時進行。
 7. 結束可主動匯出不含圖片的 JSON 紀錄；「結束並清除」停止鏡頭與清除本次學習狀態。
 
-登入由本專案獨立的 `.runtime/codex-home` 管理，不借用或改寫你平常 Codex 的登入與設定。登出伴讀帳號也不登出日常 Codex。認證儲存由官方 Codex 的 OS keyring／本機 auth 機制處理，**不要分享 `.runtime/`**。
+原始碼版登入由本專案獨立的 `.runtime/codex-home` 管理（獨立安裝版改存於 `~/Library/Application Support/AIStudyPartner/codex-home`），不借用或改寫你平常 Codex 的登入與設定。登出伴讀帳號也不登出日常 Codex。認證儲存由官方 Codex 的 OS keyring／本機 auth 機制處理，**不要分享 `.runtime/`**。
 
 `.env` 僅供選用設定，無任何金鑰：
 
@@ -79,7 +83,7 @@ STUDY_MAX_CALLS=120
 
 ## 尚未完成
 
-真實模型與手寫品質驗收、可靠的全頁自動追題、筆尖追蹤、透視校正、跨日個人化記憶、間隔複習排程、課綱知識庫、語音問答、原生安裝包、家長儀表板。年級選項會影響 prompt，但尚無逐年級驗證資料集。複習題目前由學生自行對照參考答案，不自動評分。
+真實模型與手寫品質驗收、可靠的全頁自動追題、筆尖追蹤、透視校正、跨日個人化記憶、間隔複習排程、課綱知識庫、語音問答、Developer ID 簽署與 Apple 公證、家長儀表板。年級選項會影響 prompt，但尚無逐年級驗證資料集。複習題目前由學生自行對照參考答案，不自動評分。
 
 ## 開發與測試
 

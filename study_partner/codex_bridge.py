@@ -8,6 +8,8 @@ import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 
+from .paths import runtime_directory
+
 
 class BridgeError(Exception):
     pass
@@ -25,7 +27,7 @@ class CodexBridge:
                     self.binary = candidate
                     break
         # Separate auth/config from the user's daily Codex workspace.
-        self.runtime = Path(__file__).resolve().parents[1] / ".runtime"
+        self.runtime = runtime_directory()
         self.proc = None
         self.reader = None
         self.pending = {}

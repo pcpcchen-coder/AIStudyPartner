@@ -51,3 +51,21 @@ GitHub workflow 會跑上述測試；遠端執行狀態請以 Repo Actions 的�
 每題記錄：匿名 case ID、科目、年級、圖片條件、教師題目／作答真值、模型擷取、模型判讀、核算結果、兩層提示是否洩漏、解釋正確性、複習題可解性、學生無提示變式題結果、模型 ID、Codex 版本、延遲、tokens。
 
 測試圖片若需保存，必須另外取得同意並存至排除版控的位置；公開 Repo 只放合成或明確授權素材。
+
+## 獨立安裝包驗證（2026-09-24）
+
+- v0.3.0 Apple Silicon，內附 Python 3.12.13 與官方公開 Codex 0.156.1；宣告 macOS 13 起，實際驗證機為 macOS 27。
+- Python 46 項、動作邏輯 3 項、Chromium 14 項通過；新增外部資料目錄、含空格的搬移路徑與程序身分核對測試。
+- 將 App 複製到新的臨時資料夾，限制 PATH 為系統目錄，使用全新資料目錄：內附 Python／依賴／Codex 載入、啟動、重複啟動接手、停止與重啟通過。
+- 內附 Codex 的 initialize、未登入查詢、官方 OAuth 網址產生、取消／登出及示範教材通過；沒有真人登入或模型推理。
+- 搬移及啟停後，App 的 codesign 深度／嚴格完整性驗證通過；未發現指向 App 外的符號連結或內附 auth.json／.runtime。
+- 使用同一啟動器、改用 8878 埠的 QA App，在原生控制對話框按「關閉服務並退出」後，App 與服務程序均結束；沒有中斷原本 8765 的服務。
+- 這些結果不代表其他 Mac、Gatekeeper、macOS 13 實機、真人登入、手寫與真實模型已完成驗收。發行版尚缺 Developer ID 與 Apple 公證。
+
+重跑獨立包檢查：
+
+```bash
+uv run python scripts/check_standalone.py /path/to/AIStudyPartner.app
+```
+
+此檢查只操作全新測試資料目錄與臨時複本，使用動態空閒埠，不使用作者帳號或真實作業。

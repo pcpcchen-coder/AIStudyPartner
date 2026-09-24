@@ -13,6 +13,8 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
+from .paths import runtime_directory
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -29,7 +31,17 @@ class Service:
     def __init__(self, root=ROOT, port=8765):
         self.root = Path(root).resolve()
         self.port = port
-        self.runtime = self.root / ".runtime" / f"desktop-{port}"
+        self.bootstrap = os.getenv("STUDY_BUNDLE_BOOTSTRAP")
+        runtime = runtime_directory() if root == ROOT or self.bootstrap else self.root / ".runtime"
+        self.runtime = runtime / f"desktop-{port}"
+        self.python = Path(sys.executable) if self.bootstrap else self.root / ".venv/bin/python"
+        self.command = (
+            [str(self.python), "-I", "-B", self.bootstrap, "serve", "--port", str(port)]
+            if self.bootstrap else
+            [str(self.python), "-m", "uvicorn", "study_partner.app:app", "--host",
+             "127.0.0.1", "--port", str(port), "--no-access-log",
+             "--timeout-graceful-shutdown", "10"]
+        )
         self.state = self.runtime / "service.json"
         self.url = f"http://127.0.0.1:{port}/"
 
@@ -54,7 +66,7 @@ class Service:
         if not started or not cwd or Path(cwd).resolve() != self.root:
             return None
         base = f"study_partner.app:app --host 127.0.0.1 --port {self.port} --no-access-log"
-        allowed = set()
+        allowed = {" ".join(self.command)}
         for python in ("python", "python3", "python3.12"):
             executable = self.root / ".venv" / "bin" / python
             for module in ("-m uvicorn", str(self.root / ".venv/bin/uvicorn")):
@@ -94,14 +106,12 @@ class Service:
                     raise DesktopError("本專案服務正在啟動或暫時無法回應，請稍後重新開啟 App。")
                 self.remember(identity)
                 return "已接手正在執行的伴讀服務"
-            python = self.root / ".venv/bin/python"
+            python = self.python
             if not python.exists():
                 raise DesktopError("找不到專案執行環境，請重新執行 Install App.command。")
             with (self.runtime / "server.log").open("ab") as log:
                 proc = subprocess.Popen(
-                    [str(python), "-m", "uvicorn", "study_partner.app:app", "--host",
-                     "127.0.0.1", "--port", str(self.port), "--no-access-log",
-                     "--timeout-graceful-shutdown", "10"],
+                    self.command,
                     cwd=self.root, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                     start_new_session=True,
                 )

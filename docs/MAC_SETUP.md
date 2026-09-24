@@ -1,6 +1,10 @@
 # Mac 安裝與瀏覽器登入
 
-## 安裝與啟動
+## 獨立安裝包
+
+分享給朋友請使用獨立 DMG，安裝到 Applications；無須另裝開發工具。完整步驟與未公證限制請見[獨立 Mac 安裝包](DISTRIBUTION.md)。以下為保留原始碼的開發安裝方式。
+
+## 從原始碼安裝與啟動
 
 1. 安裝 [uv](https://docs.astral.sh/uv/getting-started/installation/)。Python 3.12 由 uv 管理，不需要 Xcode。
 2. 安裝 [Codex CLI](https://learn.chatgpt.com/docs/cli) 或含 Codex 的桌面版。程式會先找 PATH，或 `/Applications/ChatGPT.app/Contents/Resources/codex`、`/Applications/Codex.app/Contents/Resources/codex`。
