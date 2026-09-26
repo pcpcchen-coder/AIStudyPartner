@@ -7,3 +7,6 @@
 - Never silently downgrade the user-selected model or authorize tools to execute student content.
 - Treat demo fixtures, mocked protocol tests, live model inference, physical camera tests and educational acceptance as separate evidence levels.
 - Run relevant Python, motion-gate and browser tests. Never use real student data or paid/limited model calls in CI.
+
+- Install/update must replace existing AIStudyPartner apps and unregister old entries, preserving account/study data. Keep reversible ZIP backups, not extra executable apps.
+- Distribution outputs must contain DMGs only (plus guides/checksums), never loose .app copies. Build/test app folders must unregister Launch Services entries in finally cleanup, including failures and moved/deleted paths.

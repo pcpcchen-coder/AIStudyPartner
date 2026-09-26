@@ -5,9 +5,9 @@ import plistlib
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
+from macos_lifecycle import temporary_apps
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,7 +41,7 @@ def build(destination, name="AIStudyPartner 伴讀", port=8765):
         raise ValueError("安裝位置必須以 .app 結尾。")
     if destination.exists():
         info = destination / "Contents/Info.plist"
-        if not info.exists() or plistlib.loads(info.read_bytes()).get("CFBundleIdentifier") != BUNDLE_ID:
+        if not info.exists() or plistlib.loads(info.read_bytes()).get("CFBundleIdentifier") not in {BUNDLE_ID, "local.aistudypartner.standalone"}:
             raise ValueError("目的位置有其他 App，未覆蓋。")
         # Do not replace an active applet; its quit handler must stay intact.
         running = subprocess.run(["/bin/ps", "-axo", "command="], capture_output=True, text=True, check=True)
@@ -56,7 +56,7 @@ def build(destination, name="AIStudyPartner 伴讀", port=8765):
         "__DISPLAY_NAME__": applescript_string(name),
     }.items():
         source = source.replace(token, value)
-    with tempfile.TemporaryDirectory(dir=destination.parent) as temporary:
+    with temporary_apps("AIStudyPartner-launcher-") as temporary:
         script = Path(temporary) / "launcher.applescript"
         script.write_text(source)
         app = Path(temporary) / destination.name
@@ -78,9 +78,14 @@ def build(destination, name="AIStudyPartner 伴讀", port=8765):
                         app / "Contents/Resources/applet.icns")
         # Ad-hoc signing is local integrity only, not Developer ID distribution/notarization.
         subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", str(app)], check=True)
-        if destination.exists():
-            shutil.rmtree(destination)
-        shutil.move(str(app), str(destination))
+        # Both installers use the same replace/backup/unregister procedure.
+        sys.path.insert(0, str(ROOT))
+        from study_partner.installation import install
+
+        directories = [destination.parent]
+        if destination.parent == Path.home() / "Applications":
+            directories.append(Path("/Applications"))
+        install(app, directories=directories, destination=destination)
     subprocess.run([("/System/Library/Frameworks/CoreServices.framework/Frameworks/"
                      "LaunchServices.framework/Support/lsregister"), "-f", str(destination)], check=True)
     print(destination)

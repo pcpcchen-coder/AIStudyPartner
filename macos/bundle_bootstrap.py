@@ -32,6 +32,10 @@ def main():
             "runtime": os.environ["STUDY_RUNTIME_DIR"], "model": os.environ["STUDY_MODEL"],
             "source": str(SOURCE), "executable": sys.executable,
         }))
+    elif action in {"install", "uninstall"}:
+        from study_partner.installation import main as install_main
+
+        install_main(RESOURCES.parent.parent)
     elif action == "serve":
         import argparse
 

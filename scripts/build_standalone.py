@@ -11,14 +11,14 @@ import struct
 import subprocess
 import sys
 import tarfile
-import tempfile
 from pathlib import Path
 from urllib.request import urlopen
 
 from build_macos_app import applescript_string, icon
+from macos_lifecycle import temporary_apps
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "0.3.2"
+VERSION = "0.3.3"
 PYTHON_URL = ("https://github.com/astral-sh/python-build-standalone/releases/download/20260325/"
               "cpython-3.12.13%2B20260325-aarch64-apple-darwin-pgo%2Blto-full.tar.zst")
 PYTHON_SHA256 = "a472b083d9c68289836bb6617b921de205a10387e07bb302c1dc8a46c4db758e"
@@ -100,7 +100,7 @@ def build(output, identity="-", notary_profile=None):
     python_archive = download(PYTHON_URL, cache / "python-full.tar.zst", PYTHON_SHA256)
     codex_archive = download(CODEX_URL, cache / "openai-codex-0.156.1-darwin-arm64.tgz",
                              CODEX_SHA512, "sha512")
-    with tempfile.TemporaryDirectory(prefix="AIStudyPartner-build-") as temp:
+    with temporary_apps("AIStudyPartner-build-") as temp:
         staging = Path(temp)
         source = (ROOT / "macos/launcher.applescript").read_text()
         source = source.replace("property projectRoot : __PROJECT_ROOT__\n", "")
@@ -170,7 +170,7 @@ def build(output, identity="-", notary_profile=None):
         info = plistlib.loads(info_path.read_bytes())
         info.update(CFBundleIdentifier="local.aistudypartner.standalone", CFBundleName="AIStudyPartner 伴讀",
                     CFBundleDisplayName="AIStudyPartner 伴讀", CFBundleShortVersionString=VERSION,
-                    CFBundleVersion="5", OSAAppletStayOpen=True, LSUIElement=False,
+                    CFBundleVersion="6", OSAAppletStayOpen=True, LSUIElement=False,
                     LSBackgroundOnly=False, LSMultipleInstancesProhibited=True,
                     LSMinimumSystemVersion=".".join(map(str, min_os)), CFBundleIconFile="StudyPartner.icns")
         info.pop("CFBundleIconName", None)
@@ -198,46 +198,50 @@ def build(output, identity="-", notary_profile=None):
             sign(binary, identity)
         sign(app, identity)
         run(["/usr/bin/codesign", "--verify", "--deep", "--strict", app])
-        # The App can be moved anywhere; no developer paths are used by its entry point.
-        destination = output / "AIStudyPartner.app"
-        if destination.exists():
-            raise ValueError("Output already contains AIStudyPartner.app; choose an empty release directory.")
-        shutil.move(app, destination)
-    image_dir = Path(tempfile.mkdtemp(prefix="AIStudyPartner-dmg-"))
-    shutil.copytree(destination, image_dir / "AIStudyPartner.app", symlinks=True)
-    # File providers can attach Finder metadata in Documents; stage the disk image
-    # outside synced folders and verify the exact App that will go into it.
-    clean_finder_metadata(image_dir / "AIStudyPartner.app")
-    run(["/usr/bin/codesign", "--verify", "--deep", "--strict", image_dir / "AIStudyPartner.app"])
-    (image_dir / "Applications").symlink_to("/Applications")
-    guide = (
-        f"AIStudyPartner {VERSION} — Apple Silicon Mac, macOS {manifest['minimum_macos']} or later\n\n"
-        "將 AIStudyPartner 拖到 Applications，再從應用程式開啟。\n"
-        "不需另裝 Python、uv、Node、Codex，也不需下載 GitHub 專案。\n"
-        "使用自己的 ChatGPT 帳號登入；所選模型仍須帳號權限與額度。\n"
-        "按 Dock 圖示 → 關閉服務並退出。\n"
-        "若舊版伴讀已執行，請先退出舊版再開啟新版。\n"
-        "登入與設定存於 ~/Library/Application Support/AIStudyPartner，不包含作者帳號。\n\n"
-        + ("此測試版僅 ad-hoc 簽署，尚未經 Apple 公證，下載後可能被 Gatekeeper 阻擋。\n"
-           "它不是免警告的正式發行版；不要關閉系統安全檢查。\n" if identity == "-" else "")
-    )
-    (image_dir / "安裝說明.txt").write_text(guide)
-    (output / "安裝說明.txt").write_text(guide)
-    dmg = output / f"AIStudyPartner-{VERSION}-AppleSilicon.dmg"
-    run(["/usr/bin/hdiutil", "create", "-volname", "AIStudyPartner", "-srcfolder", image_dir,
-         "-format", "UDZO", "-o", dmg])
-    if identity != "-":
-        run(["/usr/bin/codesign", "--force", "--sign", identity, "--timestamp", dmg])
-    if notary_profile:
-        receipt = run(["xcrun", "notarytool", "submit", dmg, "--keychain-profile",
-                       notary_profile, "--wait", "--output-format", "json"], capture_output=True, text=True)
-        (output / "notarization.json").write_text(receipt.stdout)
-        if json.loads(receipt.stdout).get("status") != "Accepted":
-            raise ValueError("Apple did not accept this notarization; see notarization.json.")
-        run(["xcrun", "stapler", "staple", dmg])
-    shutil.rmtree(image_dir)
-    (output / "SHA256SUMS.txt").write_text(f"{digest(dmg).hex()}  {dmg.name}\n")
-    print(dmg)
+        image_dir = staging / "installer-content"
+        image_dir.mkdir()
+        payload_dir = image_dir / ".payload.noindex"
+        payload_dir.mkdir()
+        shutil.move(app, payload_dir / "AIStudyPartner.app")
+        # File providers can attach Finder metadata in Documents; stage the disk image
+        # outside synced folders and verify the exact App that will go into it.
+        clean_finder_metadata(payload_dir / "AIStudyPartner.app")
+        run(["/usr/bin/codesign", "--verify", "--deep", "--strict", payload_dir / "AIStudyPartner.app"])
+        for filename, action in [("安裝或更新.command", "install"), ("移除伴讀App.command", "uninstall")]:
+            command = image_dir / filename
+            command.write_text('#!/bin/bash\nset -uo pipefail\ncd "$(dirname "$0")"\n'
+                               f'"./.payload.noindex/AIStudyPartner.app/Contents/Resources/app-control.sh" {action}\n'
+                               'result=$?\n'
+                               'read -r -p "按 Enter 關閉。"\nexit "$result"\n')
+            command.chmod(0o755)
+        guide = (
+            f"AIStudyPartner {VERSION} — Apple Silicon Mac, macOS {manifest['minimum_macos']} or later\n\n"
+            "雙擊「安裝或更新.command」，完成後從應用程式開啟。\n"
+            "不需另裝 Python、uv、Node、Codex，也不需下載 GitHub 專案。\n"
+            "使用自己的 ChatGPT 帳號登入；所選模型仍須帳號權限與額度。\n"
+            "按 Dock 圖示 → 關閉服務並退出。\n"
+            "請先退出舊版，再執行安裝／更新；會移除舊 App 與登錄，並備份為 ZIP。\n"
+            "登入與設定存於 ~/Library/Application Support/AIStudyPartner，不包含作者帳號。\n"
+            "需要移除時雙擊「移除伴讀App.command」；保留登入及學習資料。\n\n"
+            + ("此測試版僅 ad-hoc 簽署，尚未經 Apple 公證，下載後可能被 Gatekeeper 阻擋。\n"
+               "它不是免警告的正式發行版；不要關閉系統安全檢查。\n" if identity == "-" else "")
+        )
+        (image_dir / "安裝說明.txt").write_text(guide)
+        (output / "安裝說明.txt").write_text(guide)
+        dmg = output / f"AIStudyPartner-{VERSION}-AppleSilicon.dmg"
+        run(["/usr/bin/hdiutil", "create", "-volname", "AIStudyPartner", "-srcfolder", image_dir,
+             "-format", "UDZO", "-o", dmg])
+        if identity != "-":
+            run(["/usr/bin/codesign", "--force", "--sign", identity, "--timestamp", dmg])
+        if notary_profile:
+            receipt = run(["xcrun", "notarytool", "submit", dmg, "--keychain-profile",
+                           notary_profile, "--wait", "--output-format", "json"], capture_output=True, text=True)
+            (output / "notarization.json").write_text(receipt.stdout)
+            if json.loads(receipt.stdout).get("status") != "Accepted":
+                raise ValueError("Apple did not accept this notarization; see notarization.json.")
+            run(["xcrun", "stapler", "staple", dmg])
+        (output / "SHA256SUMS.txt").write_text(f"{digest(dmg).hex()}  {dmg.name}\n")
+        print(dmg)
 
 
 if __name__ == "__main__":

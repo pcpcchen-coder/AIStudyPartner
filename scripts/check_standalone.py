@@ -6,14 +6,15 @@ import os
 import shutil
 import socket
 import subprocess
-import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from macos_lifecycle import temporary_apps
+
 
 def check(app):
-    with tempfile.TemporaryDirectory(prefix="Study Partner relocation ") as folder:
+    with temporary_apps("Study Partner relocation ") as folder:
         root = Path(folder).resolve()
         moved = root / "Moved App/AIStudyPartner.app"
         shutil.copytree(app, moved, symlinks=True)

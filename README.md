@@ -38,7 +38,7 @@ bash scripts/start.sh
 
 ### 獨立安裝包（分享給朋友）
 
-v0.3.2 的 Apple Silicon DMG 內附 Python 與官方 Codex，不依賴原專案。開啟 DMG 後把 App 拖到 Applications 即可安裝；朋友使用自己的 ChatGPT 帳號登入。目前為 **未經 Apple 公證的測試版**，其他 Mac 可能被 Gatekeeper 阻擋。[安裝與發行說明](docs/DISTRIBUTION.md)
+v0.3.3 的 Apple Silicon DMG 內附 Python 與官方 Codex，不依賴原專案。開啟 DMG 後雙擊「安裝或更新.command」，會替換舊 App 並移除舊登錄；朋友使用自己的 ChatGPT 帳號登入。目前為 **未經 Apple 公證的測試版**，其他 Mac 可能被 Gatekeeper 阻擋。[安裝與發行說明](docs/DISTRIBUTION.md)
 
 ### 從原始碼建立 Mac App 啟動器
 
